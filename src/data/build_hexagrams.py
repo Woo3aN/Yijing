@@ -9,10 +9,10 @@ import os
 # ============================================================
 TRIGRAMS = {
     "乾": {"binary": "111", "nature": "天"},
-    "兑": {"binary": "011", "nature": "泽"},
+    "兑": {"binary": "110", "nature": "泽"},
     "离": {"binary": "101", "nature": "火"},
     "震": {"binary": "100", "nature": "雷"},
-    "巽": {"binary": "110", "nature": "风"},
+    "巽": {"binary": "011", "nature": "风"},
     "坎": {"binary": "010", "nature": "水"},
     "艮": {"binary": "001", "nature": "山"},
     "坤": {"binary": "000", "nature": "地"},

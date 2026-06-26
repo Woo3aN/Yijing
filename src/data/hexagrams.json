@@ -401,7 +401,7 @@
   },
   {
     "number": 9,
-    "binary": "111110",
+    "binary": "111011",
     "name": "小畜",
     "pinyin": "xiǎo xù",
     "symbol": "䷈",
@@ -451,7 +451,7 @@
   },
   {
     "number": 10,
-    "binary": "011111",
+    "binary": "110111",
     "name": "履",
     "pinyin": "lǚ",
     "symbol": "䷉",
@@ -801,7 +801,7 @@
   },
   {
     "number": 17,
-    "binary": "100011",
+    "binary": "100110",
     "name": "随",
     "pinyin": "suí",
     "symbol": "䷐",
@@ -851,7 +851,7 @@
   },
   {
     "number": 18,
-    "binary": "110001",
+    "binary": "011001",
     "name": "蛊",
     "pinyin": "gǔ",
     "symbol": "䷑",
@@ -901,7 +901,7 @@
   },
   {
     "number": 19,
-    "binary": "011000",
+    "binary": "110000",
     "name": "临",
     "pinyin": "lín",
     "symbol": "䷒",
@@ -951,7 +951,7 @@
   },
   {
     "number": 20,
-    "binary": "000110",
+    "binary": "000011",
     "name": "观",
     "pinyin": "guān",
     "symbol": "䷓",
@@ -1351,7 +1351,7 @@
   },
   {
     "number": 28,
-    "binary": "110011",
+    "binary": "011110",
     "name": "大过",
     "pinyin": "dà guò",
     "symbol": "䷛",
@@ -1501,7 +1501,7 @@
   },
   {
     "number": 31,
-    "binary": "001011",
+    "binary": "001110",
     "name": "咸",
     "pinyin": "xián",
     "symbol": "䷞",
@@ -1551,7 +1551,7 @@
   },
   {
     "number": 32,
-    "binary": "110100",
+    "binary": "011100",
     "name": "恒",
     "pinyin": "héng",
     "symbol": "䷟",
@@ -1801,7 +1801,7 @@
   },
   {
     "number": 37,
-    "binary": "101110",
+    "binary": "101011",
     "name": "家人",
     "pinyin": "jiā rén",
     "symbol": "䷤",
@@ -1851,7 +1851,7 @@
   },
   {
     "number": 38,
-    "binary": "011101",
+    "binary": "110101",
     "name": "睽",
     "pinyin": "kuí",
     "symbol": "䷥",
@@ -2001,7 +2001,7 @@
   },
   {
     "number": 41,
-    "binary": "011001",
+    "binary": "110001",
     "name": "损",
     "pinyin": "sǔn",
     "symbol": "䷨",
@@ -2051,7 +2051,7 @@
   },
   {
     "number": 42,
-    "binary": "100110",
+    "binary": "100011",
     "name": "益",
     "pinyin": "yì",
     "symbol": "䷩",
@@ -2101,7 +2101,7 @@
   },
   {
     "number": 43,
-    "binary": "111011",
+    "binary": "111110",
     "name": "夬",
     "pinyin": "guài",
     "symbol": "䷪",
@@ -2151,7 +2151,7 @@
   },
   {
     "number": 44,
-    "binary": "110111",
+    "binary": "011111",
     "name": "姤",
     "pinyin": "gòu",
     "symbol": "䷫",
@@ -2201,7 +2201,7 @@
   },
   {
     "number": 45,
-    "binary": "000011",
+    "binary": "000110",
     "name": "萃",
     "pinyin": "cuì",
     "symbol": "䷬",
@@ -2251,7 +2251,7 @@
   },
   {
     "number": 46,
-    "binary": "110000",
+    "binary": "011000",
     "name": "升",
     "pinyin": "shēng",
     "symbol": "䷭",
@@ -2301,7 +2301,7 @@
   },
   {
     "number": 47,
-    "binary": "010011",
+    "binary": "010110",
     "name": "困",
     "pinyin": "kùn",
     "symbol": "䷮",
@@ -2351,7 +2351,7 @@
   },
   {
     "number": 48,
-    "binary": "110010",
+    "binary": "011010",
     "name": "井",
     "pinyin": "jǐng",
     "symbol": "䷯",
@@ -2401,7 +2401,7 @@
   },
   {
     "number": 49,
-    "binary": "101011",
+    "binary": "101110",
     "name": "革",
     "pinyin": "gé",
     "symbol": "䷰",
@@ -2451,7 +2451,7 @@
   },
   {
     "number": 50,
-    "binary": "110101",
+    "binary": "011101",
     "name": "鼎",
     "pinyin": "dǐng",
     "symbol": "䷱",
@@ -2601,7 +2601,7 @@
   },
   {
     "number": 53,
-    "binary": "001110",
+    "binary": "001011",
     "name": "渐",
     "pinyin": "jiàn",
     "symbol": "䷴",
@@ -2651,7 +2651,7 @@
   },
   {
     "number": 54,
-    "binary": "011100",
+    "binary": "110100",
     "name": "归妹",
     "pinyin": "guī mèi",
     "symbol": "䷵",
@@ -2801,7 +2801,7 @@
   },
   {
     "number": 57,
-    "binary": "110110",
+    "binary": "011011",
     "name": "巽",
     "pinyin": "xùn",
     "symbol": "䷸",
@@ -2851,7 +2851,7 @@
   },
   {
     "number": 58,
-    "binary": "011011",
+    "binary": "110110",
     "name": "兑",
     "pinyin": "duì",
     "symbol": "䷹",
@@ -2901,7 +2901,7 @@
   },
   {
     "number": 59,
-    "binary": "010110",
+    "binary": "010011",
     "name": "涣",
     "pinyin": "huàn",
     "symbol": "䷺",
@@ -2951,7 +2951,7 @@
   },
   {
     "number": 60,
-    "binary": "011010",
+    "binary": "110010",
     "name": "节",
     "pinyin": "jié",
     "symbol": "䷻",
@@ -3001,7 +3001,7 @@
   },
   {
     "number": 61,
-    "binary": "011110",
+    "binary": "110011",
     "name": "中孚",
     "pinyin": "zhōng fú",
     "symbol": "䷼",
