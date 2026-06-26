@@ -122,7 +122,7 @@ class SettingsPage:
         self.test_btn = ttk.Button(
             btn_frame, text=" 测试连接 ",
             command=self._test_connection,
-            bootstyle="outline-secondary",
+            bootstyle="outline-info",
         )
         self.test_btn.pack(side=LEFT, padx=(0, 10))
 
