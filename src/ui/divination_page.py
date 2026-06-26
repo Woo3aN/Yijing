@@ -430,17 +430,17 @@ class DivinationPage:
             stripped = line.strip()
             is_heading = False
             # 模式匹配：小标题特征
-            if len(stripped) <= 30 and len(stripped) >= 4:
-                # 以数字+分隔符开头
-                if re.match(r'^[一二三四五六七八九十\d]+[、.．）\)]\s*', stripped):
+            if len(stripped) >= 4:
+                # 数字前缀行（"一、" "1."）≤20字 → 标题
+                num_match = re.match(r'^[一二三四五六七八九十\d]+[、.．）\)]\s*', stripped)
+                if num_match and len(stripped) <= 20:
                     is_heading = True
-                # 以汉字数字结尾带冒号
-                elif re.match(r'^.{2,28}[：:]$', stripped):
+                # 冒号结尾且很短（≤12字）→ 标题（如 "综合建议："）
+                elif len(stripped) <= 12 and re.match(r'^.{2,11}[：:]$', stripped):
                     is_heading = True
-                # 全行都是重要标记
-                elif '启示' in stripped or '建议' in stripped or '总结' in stripped or '分析' in stripped:
-                    if len(stripped) <= 15:
-                        is_heading = True
+                # 仅含关键词的极短行（≤10字）→ 标题
+                elif len(stripped) <= 10 and ('启示' in stripped or '建议' in stripped or '总结' in stripped or '分析' in stripped):
+                    is_heading = True
             if is_heading:
                 line_start = f"{pos} +{len(line) - len(stripped)}c"
                 line_end = f"{line_start} +{len(stripped)}c"
@@ -540,7 +540,7 @@ class DivinationPage:
 
                 self.frame.after(0, lambda: r.configure(state=NORMAL))
                 self.frame.after(0, lambda: r.delete("ai_stream", END))
-                self.frame.after(0, lambda: r.insert(END, text + "\n"))
+                self.frame.after(0, lambda: r.insert(END, "\n" + text + "\n"))
                 self.frame.after(0, lambda: self._apply_ai_highlight())
                 self.frame.after(0, lambda: r.configure(state=DISABLED))
                 # 保存 AI 结果到历史记录

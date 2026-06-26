@@ -130,8 +130,8 @@ def analyze(
             {"role": "user", "content": prompt}
         ],
         temperature=0.7,
-        max_tokens=1000,
-        timeout=60,
+        max_tokens=2000,
+        timeout=90,
     )
 
     return response.choices[0].message.content
@@ -178,8 +178,8 @@ def analyze_stream(**kwargs) -> Iterator[str]:
             {"role": "user", "content": prompt}
         ],
         temperature=0.7,
-        max_tokens=1000,
-        timeout=60,
+        max_tokens=2000,
+        timeout=90,
         stream=True,
     )
 

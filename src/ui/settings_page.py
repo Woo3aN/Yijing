@@ -22,6 +22,22 @@ PRESET_MODELS = [
     "—— 自定义 ——",
 ]
 
+# 模型 → API 地址映射（切换模型时自动填充）
+MODEL_ENDPOINTS = {
+    "deepseek": "https://api.deepseek.com",
+    "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "glm": "https://open.bigmodel.cn/api/paas/v4",
+    "gpt": "https://api.openai.com/v1",
+    "claude": "https://api.anthropic.com",
+}
+
+def _get_endpoint_for_model(model_name: str) -> str | None:
+    """根据模型名推断 API 地址"""
+    for prefix, endpoint in MODEL_ENDPOINTS.items():
+        if model_name.startswith(prefix):
+            return endpoint
+    return None
+
 
 class SettingsPage:
     """设置标签页"""
@@ -157,7 +173,7 @@ class SettingsPage:
     # ── 模型选择逻辑 ──
 
     def _on_model_selected(self, event=None):
-        """下拉框选择变化"""
+        """下拉框选择变化 —— 自动填充对应 API 地址"""
         selected = self.model_combo_var.get()
         if selected == "—— 自定义 ——":
             self.custom_entry.pack(side=LEFT, padx=(8, 0))
@@ -165,6 +181,10 @@ class SettingsPage:
         else:
             self.custom_entry.pack_forget()
             self._custom_model = ""  # 用预设值，清空自定义
+            # 自动填充对应的 API 地址
+            endpoint = _get_endpoint_for_model(selected)
+            if endpoint:
+                self.api_endpoint_var.set(endpoint)
 
     def _get_model_name(self) -> str:
         """获取当前选择的模型名称"""
