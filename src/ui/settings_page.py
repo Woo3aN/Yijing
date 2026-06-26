@@ -7,22 +7,29 @@ from ttkbootstrap.constants import *
 from storage.app_settings import load_settings, save_settings, AppSettings
 from ai.llm_client import test_connection
 
-# 预设模型列表
+# 预设模型列表（2026年6月最新）
 PRESET_MODELS = [
+    # DeepSeek
     "deepseek-v4-pro",
     "deepseek-v4-flash",
-    "deepseek-reasoner",
-    "qwen-turbo-latest",
-    "qwen-plus-latest",
-    "glm-4-plus",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "claude-sonnet-4-6",
+    # Qwen (通义千问)
+    "qwen3.7-plus",
+    "qwen3.6-flash",
+    # GLM (智谱)
+    "glm-5.2",
+    "glm-4.7-flash",
+    # GPT (OpenAI)
+    "gpt-5.5",
+    "gpt-5.4-mini",
+    # Claude (Anthropic)
     "claude-fable-5",
+    "claude-sonnet-4-6",
+    # 自定义
     "—— 自定义 ——",
 ]
 
 # 模型 → API 地址映射（切换模型时自动填充）
+# 注意：Claude 原生 API 不兼容 OpenAI SDK，需使用兼容代理
 MODEL_ENDPOINTS = {
     "deepseek": "https://api.deepseek.com",
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
