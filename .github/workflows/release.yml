@@ -45,6 +45,9 @@ jobs:
 
       - name: 创建 Release 并上传
         run: |
+          # 先删旧 Release（如果存在），避免 "already exists" 冲突
+          gh release delete ${{ github.ref_name }} --yes --cleanup-tag 2>$null
+          Write-Host "创建新 Release..."
           gh release create ${{ github.ref_name }} `
             --title "${{ github.ref_name }} - 易经占卜" `
             --notes-file release_notes.md `
