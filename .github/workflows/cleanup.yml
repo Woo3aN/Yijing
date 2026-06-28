@@ -1,0 +1,19 @@
+name: Cleanup Old Releases
+
+on:
+  workflow_dispatch:       # 手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 删除中间版本 Release
+        run: |
+          for tag in v1.0.2 v1.0.3 v1.0.4 v1.0.5 v1.0.6 v1.0.7 v1.0.8; do
+            gh release delete $tag --yes --cleanup-tag 2>/dev/null && echo "Deleted $tag" || echo "Skip $tag (not found)"
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

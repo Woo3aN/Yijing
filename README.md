@@ -6,23 +6,26 @@
 
 ## 功能
 
-- 🔮 **两种起卦方式**：三铜钱法（逐爻动画） / 随机数法
+- 🔮 **两种起卦方式**：三铜钱法（逐爻动画） / 随机数法（一键生成）
 - 📖 **完整易经原文**：64 卦卦辞、彖传、大象传、爻辞、小象传
 - 🧓 **朱熹断卦规则**：7 条规则自动判定变爻断法
-- 🤖 **AI 深度解读**：支持 DeepSeek / 通义千问 / 智谱 GLM / GPT / Claude + 自定义
-- 📋 **历史记录**：搜索、详情、删除、一键清空
+- 🤖 **AI 深度解读**：支持 DeepSeek / 通义千问 / 智谱 GLM / GPT / Claude + 自定义模型
+- 📋 **历史记录**：分页浏览、关键词搜索、详情查看、删除 / 清空
+- 📎 **复制导出**：一键复制卦象全文、导出为 .txt 文件
+- 🎨 **主题切换**：18 个内置主题，一键切换、重启保持
+- 📦 **单文件 EXE**：PyInstaller 打包，无需安装 Python
 
 ## 快速开始
 
 ### 下载即用
 
-下载 `易经占卜.exe`（见 [Releases](../../releases)），双击运行。
+👉 [下载 Yijing.exe](https://github.com/Woo3aN/Yijing/releases/latest)（见 [Releases](../../releases)），双击运行。
 
 ### 开发者
 
 ```bash
-git clone https://github.com/你的用户名/yijing.git
-cd yijing
+git clone https://github.com/Woo3aN/Yijing.git
+cd Yijing
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
@@ -38,6 +41,7 @@ python src/main.py
 | 数据库 | SQLite（历史记录） |
 | AI | openai SDK（兼容 DeepSeek 等） |
 | 打包 | PyInstaller → 单文件 exe |
+| CI/CD | GitHub Actions（推送 tag 自动构建发布） |
 
 ## 项目结构
 

@@ -47,7 +47,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='易经占卜',
+    name='Yijing',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
