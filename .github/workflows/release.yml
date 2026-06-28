@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 拉取全部历史，gh 需要用来生成 changelog
 
       - name: 设置 Python
         uses: actions/setup-python@v5
@@ -36,6 +38,7 @@ jobs:
           gh release create ${{ github.ref_name }} `
             --title "${{ github.ref_name }} - 易经占卜" `
             --generate-notes `
+            --notes-start-tag `git describe --tags --abbrev=0 HEAD^ 2>$null || echo ""` `
             dist/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
