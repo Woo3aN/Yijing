@@ -54,3 +54,13 @@ jobs:
             dist/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 清理中间版本 Release
+        run: |
+          $old = @("v1.0.3", "v1.0.4", "v1.0.5", "v1.0.6", "v1.0.7", "v1.0.8")
+          foreach ($t in $old) {
+            gh release delete $t --yes --cleanup-tag 2>$null
+            Write-Host "Cleaned up $t"
+          }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
