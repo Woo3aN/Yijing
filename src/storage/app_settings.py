@@ -12,6 +12,7 @@ class AppSettings:
     api_key: str = ""
     api_endpoint: str = "https://api.deepseek.com"
     model_name: str = "deepseek-v4-pro"
+    theme: str = "darkly"
 
 
 def _get_settings_dir() -> str:
@@ -37,6 +38,7 @@ def load_settings() -> AppSettings:
             api_key=data.get("api_key", ""),
             api_endpoint=data.get("api_endpoint", "https://api.deepseek.com"),
             model_name=data.get("model_name", "deepseek-v4-pro"),
+            theme=data.get("theme", "darkly"),
         )
     except (FileNotFoundError, json.JSONDecodeError):
         return AppSettings()

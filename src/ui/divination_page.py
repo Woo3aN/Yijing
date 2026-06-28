@@ -2,6 +2,8 @@
 
 import random
 import threading
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 
@@ -394,6 +396,22 @@ class DivinationPage:
         self._ai_btn_frame.pack(anchor=E, padx=10, pady=(6, 0),
                                 before=self.result_text)
 
+        # 复制结果按钮
+        self.copy_btn = ttk.Button(
+            self._ai_btn_frame, text="📋 复制结果",
+            command=self._copy_result,
+            bootstyle="outline-info",
+        )
+        self.copy_btn.pack(side=LEFT, padx=(0, 8))
+
+        # 导出文本按钮
+        self.export_btn = ttk.Button(
+            self._ai_btn_frame, text="💾 导出文本",
+            command=self._export_result,
+            bootstyle="outline-info",
+        )
+        self.export_btn.pack(side=LEFT, padx=(0, 14))
+
         self.ai_btn = ttk.Button(
             self._ai_btn_frame, text="🤖  AI 解卦",
             command=self._request_ai_analysis,
@@ -414,6 +432,47 @@ class DivinationPage:
             self.ai_btn.configure(state=DISABLED)
             self.ai_status.configure(
                 text="未配置 API 密钥", foreground="#999999")
+
+    # ═══════════════════════════════════
+    #  复制 / 导出
+    # ═══════════════════════════════════
+
+    def _get_result_text(self) -> str:
+        """获取卦象结果的纯文本内容"""
+        return self.result_text.get("1.0", "end-1c")
+
+    def _copy_result(self):
+        """复制卦象结果到剪贴板"""
+        text = self._get_result_text()
+        root = self.frame.winfo_toplevel()
+        root.clipboard_clear()
+        root.clipboard_append(text)
+        root.update()  # 确保剪贴板内容在 Windows 上持久化
+
+        # 短暂显示复制成功
+        original = self.copy_btn.cget("text")
+        self.copy_btn.configure(text="✓ 已复制")
+        self.frame.after(1500, lambda: self.copy_btn.configure(text=original))
+
+    def _export_result(self):
+        """导出卦象结果为文本文件"""
+        text = self._get_result_text()
+        filepath = filedialog.asksaveasfilename(
+            parent=self.frame,
+            title="导出卦象结果",
+            defaultextension=".txt",
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")],
+            initialfile="易经占卜结果.txt",
+        )
+        if not filepath:
+            return  # 用户取消
+
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(text)
+            messagebox.showinfo("导出成功", f"卦象结果已保存到：\n{filepath}")
+        except Exception as e:
+            messagebox.showerror("导出失败", f"保存文件时出错：{e}")
 
     def _apply_ai_highlight(self):
         """扫描 AI 结果，自动给疑似小标题加粗"""

@@ -16,6 +16,7 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 
 from ui.main_window import MainWindow
+from storage.app_settings import load_settings
 
 
 def _get_path(relative_path: str) -> str:
@@ -27,9 +28,13 @@ def _get_path(relative_path: str) -> str:
 
 
 def main():
-    # 创建主窗口，使用 darkly 深色主题
+    # 从设置读取主题（默认 darkly）
+    settings = load_settings()
+    theme = settings.theme if hasattr(settings, 'theme') else "darkly"
+
+    # 创建主窗口
     root = ttk.Window(
-        themename="darkly",
+        themename=theme,
         title="易经占卜",
         size=(960, 740),
         minsize=(720, 540),

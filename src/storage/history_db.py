@@ -108,13 +108,13 @@ def get_reading_by_id(reading_id: int) -> Optional[dict]:
     return _row_to_dict(row) if row else None
 
 
-def search_readings(keyword: str, limit: int = 50) -> list[dict]:
+def search_readings(keyword: str, limit: int = 50, offset: int = 0) -> list[dict]:
     """按问题关键词搜索历史记录"""
     init_db()
     conn = _get_connection()
     rows = conn.execute(
-        "SELECT * FROM readings WHERE question LIKE ? ORDER BY created_at DESC LIMIT ?",
-        (f"%{keyword}%", limit)
+        "SELECT * FROM readings WHERE question LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        (f"%{keyword}%", limit, offset)
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
@@ -143,6 +143,29 @@ def update_ai_analysis(reading_id: int, ai_text: str) -> bool:
     updated = cursor.rowcount > 0
     conn.close()
     return updated
+
+
+def get_reading_count(keyword: str = "") -> int:
+    """
+    获取历史记录总数，支持按关键词过滤。
+
+    Args:
+        keyword: 搜索关键词（空字符串表示全部）
+
+    Returns:
+        记录总数
+    """
+    init_db()
+    conn = _get_connection()
+    if keyword:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM readings WHERE question LIKE ?",
+            (f"%{keyword}%",)
+        ).fetchone()
+    else:
+        row = conn.execute("SELECT COUNT(*) FROM readings").fetchone()
+    conn.close()
+    return row[0] if row else 0
 
 
 def clear_all_readings() -> int:

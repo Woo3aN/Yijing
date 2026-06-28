@@ -6,7 +6,7 @@ from tkinter import messagebox
 
 from storage.history_db import (
     get_all_readings, search_readings, get_reading_by_id, delete_reading,
-    clear_all_readings,
+    clear_all_readings, get_reading_count,
 )
 
 
@@ -15,6 +15,9 @@ class HistoryPage:
 
     def __init__(self, parent: ttk.Notebook):
         self.frame = ttk.Frame(parent)
+        self._current_id: int | None = None
+        self._page_size = 20
+        self._current_page = 0  # 0-based
 
         # ---- 搜索栏 ----
         search_frame = ttk.Frame(self.frame)
@@ -26,11 +29,11 @@ class HistoryPage:
             search_frame, textvariable=self.search_var, width=30
         )
         self.search_entry.pack(side=LEFT, padx=5)
-        self.search_entry.bind("<Return>", lambda e: self.refresh_list())
+        self.search_entry.bind("<Return>", lambda e: self._search())
 
         ttk.Button(
             search_frame, text="搜索",
-            command=self.refresh_list,
+            command=self._search,
             bootstyle="outline-secondary"
         ).pack(side=LEFT)
 
@@ -68,6 +71,32 @@ class HistoryPage:
 
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
 
+        # ---- 分页栏 ----
+        page_frame = ttk.Frame(self.frame)
+        page_frame.pack(fill=X, padx=10, pady=(0, 5))
+
+        self.prev_btn = ttk.Button(
+            page_frame, text="« 上一页",
+            command=self._prev_page,
+            bootstyle="outline-secondary",
+            state=DISABLED,
+        )
+        self.prev_btn.pack(side=LEFT)
+
+        self.page_label = ttk.Label(
+            page_frame, text="第 0/0 页",
+            font=("等线", 9), foreground="#999999"
+        )
+        self.page_label.pack(side=LEFT, padx=12)
+
+        self.next_btn = ttk.Button(
+            page_frame, text="下一页 »",
+            command=self._next_page,
+            bootstyle="outline-secondary",
+            state=DISABLED,
+        )
+        self.next_btn.pack(side=LEFT)
+
         # ---- 详情面板 ----
         detail_frame = ttk.LabelFrame(self.frame, text="记录详情")
         detail_frame.pack(fill=BOTH, expand=YES, padx=10, pady=(5, 10))
@@ -97,22 +126,35 @@ class HistoryPage:
         )
         self.delete_btn.pack(side=RIGHT)
 
-        self._current_id: int | None = None
-
         # 初始加载
         self.refresh_list()
 
     def refresh_list(self):
-        """刷新历史列表"""
+        """刷新历史列表（支持分页）"""
+        keyword = self.search_var.get().strip()
+
+        # 先获取总数，确保当前页不越界
+        if keyword:
+            total = get_reading_count(keyword)
+        else:
+            total = get_reading_count()
+
+        total_pages = max(1, (total + self._page_size - 1) // self._page_size) if total > 0 else 0
+        # 如果当前页超出范围（删除最后一条等），回退到最后一页
+        if total > 0 and self._current_page >= total_pages:
+            self._current_page = total_pages - 1
+
+        offset = self._current_page * self._page_size
+
         # 清空现有列表
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        keyword = self.search_var.get().strip()
         if keyword:
-            readings = search_readings(keyword)
+            readings = search_readings(keyword, limit=self._page_size,
+                                        offset=offset)
         else:
-            readings = get_all_readings()
+            readings = get_all_readings(limit=self._page_size, offset=offset)
 
         for r in readings:
             question_display = r["question"][:30] + "..." if len(r.get("question", "")) > 30 else r.get("question", "")
@@ -124,9 +166,34 @@ class HistoryPage:
                 changed_display,
             ))
 
+        # 更新分页控件状态
+        current_display = self._current_page + 1 if total > 0 else 0
+        self.page_label.configure(text=f"第 {current_display}/{total_pages} 页")
+
+        self.prev_btn.configure(state=NORMAL if self._current_page > 0 else DISABLED)
+        has_next = (self._current_page + 1) * self._page_size < total
+        self.next_btn.configure(state=NORMAL if has_next else DISABLED)
+
+    def _search(self):
+        """搜索（重置到第一页）"""
+        self._current_page = 0
+        self.refresh_list()
+
     def _show_all(self):
         """显示全部记录"""
         self.search_var.set("")
+        self._current_page = 0
+        self.refresh_list()
+
+    def _prev_page(self):
+        """上一页"""
+        if self._current_page > 0:
+            self._current_page -= 1
+            self.refresh_list()
+
+    def _next_page(self):
+        """下一页"""
+        self._current_page += 1
         self.refresh_list()
 
     def _on_select(self, event):

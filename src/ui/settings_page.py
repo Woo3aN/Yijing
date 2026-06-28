@@ -148,6 +148,24 @@ class SettingsPage:
         )
         self.status_label.pack(pady=8, padx=40, anchor=W)
 
+        # ── 界面主题 ──
+        theme_frame = ttk.Frame(self.frame)
+        theme_frame.pack(fill=X, padx=40, pady=6)
+        ttk.Label(theme_frame, text="界面主题", width=14, anchor=E,
+                  font=("等线", 10)).pack(side=LEFT, padx=(0, 10))
+
+        self.theme_var = ttk.StringVar()
+        self.theme_combo = ttk.Combobox(
+            theme_frame,
+            textvariable=self.theme_var,
+            values=sorted(ttk.Style().theme_names()),
+            state="readonly",
+            width=30,
+            font=("等线", 10),
+        )
+        self.theme_combo.pack(side=LEFT)
+        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_selected)
+
         # ── 分隔线 ──
         ttk.Separator(self.frame, orient=HORIZONTAL).pack(
             fill=X, padx=40, pady=20)
@@ -176,6 +194,16 @@ class SettingsPage:
 
         # 加载当前设置
         self.load_current_settings()
+
+    # ── 主题选择逻辑 ──
+
+    def _on_theme_selected(self, event=None):
+        """主题下拉框选择变化 —— 即时切换主题"""
+        new_theme = self.theme_var.get()
+        if new_theme:
+            root = self.frame.winfo_toplevel()
+            if hasattr(root, 'style'):
+                root.style.theme_use(new_theme)
 
     # ── 模型选择逻辑 ──
 
@@ -208,6 +236,10 @@ class SettingsPage:
         self.api_key_var.set(settings.api_key)
         self.api_endpoint_var.set(settings.api_endpoint)
 
+        # 主题
+        theme = settings.theme if hasattr(settings, 'theme') else "darkly"
+        self.theme_var.set(theme)
+
         # 判断当前模型是否在预设列表中
         model = settings.model_name
         if model in PRESET_MODELS and model != "—— 自定义 ——":
@@ -227,6 +259,7 @@ class SettingsPage:
             api_key=self.api_key_var.get().strip(),
             api_endpoint=self.api_endpoint_var.get().strip(),
             model_name=self._get_model_name(),
+            theme=self.theme_var.get(),
         )
         save_settings(settings)
         self.status_var.set("✓ 设置已保存")
