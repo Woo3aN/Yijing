@@ -18,7 +18,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          fetch-tags: true
+
+      - name: 拉取所有 tag（含 annotated tag 消息体）
+        run: git fetch --tags --force
 
       - name: 设置 Python
         uses: actions/setup-python@v5
@@ -35,7 +37,11 @@ jobs:
         run: dir dist\
 
       - name: 提取 tag 说明
-        run: git tag -l --format='%(contents)' ${{ github.ref_name }} > release_notes.md
+        run: |
+          $tag = '${{ github.ref_name }}'
+          git for-each-ref --format='%(contents)' "refs/tags/$tag" > release_notes.md
+          Write-Host "Notes preview:"
+          Get-Content release_notes.md | Select-Object -First 3
 
       - name: 创建 Release 并上传
         run: |
