@@ -43,6 +43,14 @@ jobs:
           Write-Host "Notes preview:"
           Get-Content release_notes.md | Select-Object -First 3
 
+      - name: 清理 Draft Release
+        run: |
+          # 删除所有草稿 Release（之前流程中断可能残留）
+          gh release list --limit 50 --json tagName,isDraft --jq '.[] | select(.isDraft) | .tagName' |
+            ForEach-Object { gh release delete $_ --yes --cleanup-tag; Write-Host "Deleted draft: $_" }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: 创建 Release 并上传
         run: |
           # 先删旧 Release（如果存在），避免 "already exists" 冲突
