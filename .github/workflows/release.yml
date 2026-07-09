@@ -75,7 +75,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Continue"
-          $old = @("v1.0.3", "v1.0.4", "v1.0.5", "v1.0.6", "v1.0.7", "v1.0.8")
+          $old = @()  # 已清理完毕
           foreach ($t in $old) {
             try {
               gh release delete $t --yes --cleanup-tag 2>$null
