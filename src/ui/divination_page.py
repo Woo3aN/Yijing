@@ -15,6 +15,8 @@ from core.divination import (
 from core.text_loader import get_hexagram
 from storage.history_db import save_reading
 from storage.app_settings import has_api_key
+from ui.theme import (get_text_colors, get_theme_colors,
+                     RoundedButton, refresh_tk_widgets, register_tk_widget)
 
 COIN_GLYPHS = {0: "◯", 1: "●"}
 POS_NAMES   = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"]
@@ -38,44 +40,31 @@ class DivinationPage:
     # ═══════════════════════════════════
 
     def _setup_tags(self):
-        """配置 Text 组件的富文本样式标签 —— 媲美卡片式排版"""
+        """配置 Text 组件的富文本样式标签"""
+        self.refresh_text_tags()
+
+    def refresh_text_tags(self):
+        """刷新 Text 标签颜色（主题切换时调用）"""
         r = self.result_text
+        c = get_text_colors()
 
-        # 标题（加大间距，层次分明）
-        r.tag_configure("h1", font=("楷体", 17, "bold"), foreground="#ffffff")
-        r.tag_configure("h2", font=("楷体", 14, "bold"), foreground="#dddddd")
-        r.tag_configure("h3", font=("楷体", 12, "bold"), foreground="#cccccc")
-
-        # 正文
-        r.tag_configure("body", font=("等线", 10), foreground="#cccccc")
-
-        # 卦名（大字楷体）
-        r.tag_configure("guaming", font=("楷体", 19, "bold"), foreground="#ffffff")
-        r.tag_configure("guafu", font=("Microsoft YaHei", 42), foreground="#ffffff")
-
-        # 六爻线条
-        r.tag_configure("line_default", font=("楷体", 13), foreground="#bbbbbb")
-        r.tag_configure("line_changed", font=("楷体", 13), foreground="#f1c40f")
-
-        # 高亮 — 楷体加粗白色（AI 小标题）
-        r.tag_configure("highlight", font=("楷体", 11, "bold"), foreground="#ffffff")
-        # 本卦/变卦 badge 颜色
-        r.tag_configure("tag_primary", font=("楷体", 11, "bold"), foreground="#3498db")
-        r.tag_configure("tag_change", font=("楷体", 11, "bold"), foreground="#e67e22")
-        # 警告/变爻颜色
-        r.tag_configure("warn", font=("等线", 10), foreground="#f39c12")
-        # 灰色备注
-        r.tag_configure("dim", font=("等线", 9), foreground="#888888")
-
-        # 分隔线
-        r.tag_configure("sep", font=("等线", 4), foreground="#444444")
-
-        # 爻辞
-        r.tag_configure("line_chg", font=("等线", 10, "bold"), foreground="#f39c12")
-        r.tag_configure("line_normal", font=("等线", 10), foreground="#cccccc")
-
-        # 居中占位提示
-        r.tag_configure("placeholder", font=("楷体", 13), foreground="#666666",
+        r.tag_configure("h1", font=("楷体", 17, "bold"), foreground=c["h1"])
+        r.tag_configure("h2", font=("楷体", 14, "bold"), foreground=c["h2"])
+        r.tag_configure("h3", font=("楷体", 12, "bold"), foreground=c["h3"])
+        r.tag_configure("body", font=("等线", 10), foreground=c["body"])
+        r.tag_configure("guaming", font=("楷体", 19, "bold"), foreground=c["h1"])
+        r.tag_configure("guafu", font=("Microsoft YaHei", 42), foreground=c["guafu"])
+        r.tag_configure("line_default", font=("楷体", 13), foreground=c["line_default"])
+        r.tag_configure("line_changed", font=("楷体", 13), foreground=c["line_changed"])
+        r.tag_configure("highlight", font=("楷体", 11, "bold"), foreground=c["highlight"])
+        r.tag_configure("tag_primary", font=("楷体", 11, "bold"), foreground=c["tag_primary"])
+        r.tag_configure("tag_change", font=("楷体", 11, "bold"), foreground=c["tag_change"])
+        r.tag_configure("warn", font=("等线", 10), foreground=c["warn"])
+        r.tag_configure("dim", font=("等线", 9), foreground=c["dim"])
+        r.tag_configure("sep", font=("等线", 4), foreground=c["sep"])
+        r.tag_configure("line_chg", font=("等线", 10, "bold"), foreground=c["line_chg"])
+        r.tag_configure("line_normal", font=("等线", 10), foreground=c["line_normal"])
+        r.tag_configure("placeholder", font=("楷体", 13), foreground=c["placeholder"],
                         justify="center")
         r.tag_configure("center", justify="center")
 
@@ -108,25 +97,28 @@ class DivinationPage:
 
         coin_col = ttk.Frame(btn_row)
         coin_col.pack(side=LEFT, padx=(0, 16), fill=X, expand=YES)
-        self.coin_btn = ttk.Button(
+        c = get_theme_colors()
+        self.coin_btn = RoundedButton(
             coin_col, text="☰  三 铜 钱 法",
+            theme_color="primary",
             command=lambda: self._start_divination("coins"),
-            bootstyle="primary",
+            height=40, font_size=12,
         )
-        self.coin_btn.pack(fill=X, ipady=6)
+        self.coin_btn.pack(pady=(4, 2))
         ttk.Label(coin_col, text="逐爻摇卦 · 传统仪式",
-                  font=("等线", 9), foreground="#999999").pack()
+                  font=("等线", 9), foreground=c["text_dim"]).pack()
 
         rand_col = ttk.Frame(btn_row)
         rand_col.pack(side=LEFT, fill=X, expand=YES)
-        self.random_btn = ttk.Button(
+        self.random_btn = RoundedButton(
             rand_col, text="✦  随 机 数 法",
+            theme_color="success",
             command=lambda: self._start_divination("random"),
-            bootstyle="success",
+            height=40, font_size=12,
         )
-        self.random_btn.pack(fill=X, ipady=6)
+        self.random_btn.pack(pady=(4, 2))
         ttk.Label(rand_col, text="一键生成 · 快速便捷",
-                  font=("等线", 9), foreground="#999999").pack()
+                  font=("等线", 9), foreground=c["text_dim"]).pack()
 
         # ── 过程区 ──
         self.process_frame = ttk.LabelFrame(self.frame, text=" 摇卦过程 ")
@@ -162,12 +154,14 @@ class DivinationPage:
     def _on_focus_in(self, event):
         if self.question_text.get("1.0", "end-1c") == self._placeholder:
             self.question_text.delete("1.0", END)
-            self.question_text.configure(foreground="#ffffff")
+            c = get_text_colors()
+            self.question_text.configure(foreground=c["h1"])
 
     def _on_focus_out(self, event):
         if not self.question_text.get("1.0", "end-1c").strip():
             self.question_text.insert("1.0", self._placeholder)
-            self.question_text.configure(foreground="#888888")
+            c = get_text_colors()
+            self.question_text.configure(foreground=c["placeholder"])
 
     def _get_question(self) -> str:
         text = self.question_text.get("1.0", "end-1c").strip()
@@ -185,8 +179,8 @@ class DivinationPage:
     # ═══════════════════════════════════
 
     def _start_divination(self, method: str):
-        self.coin_btn.configure(state=DISABLED)
-        self.random_btn.configure(state=DISABLED)
+        self.coin_btn.configure_state(False)
+        self.random_btn.configure_state(False)
         self._cancel_ai_stream()
 
         self.process_frame.pack(fill=X, padx=16, pady=(0, 6),
@@ -331,8 +325,8 @@ class DivinationPage:
             changed_hexagram_name=self._changed_data["name"] if self._changed_data else None,
         )
 
-        self.coin_btn.configure(state=NORMAL)
-        self.random_btn.configure(state=NORMAL)
+        self.coin_btn.configure_state(True)
+        self.random_btn.configure_state(True)
 
     # ── 插入辅助函数 ──
 
@@ -396,26 +390,30 @@ class DivinationPage:
         self._ai_btn_frame.pack(anchor=E, padx=10, pady=(6, 0),
                                 before=self.result_text)
 
-        # 复制结果按钮
-        self.copy_btn = ttk.Button(
+        # 复制结果按钮（描边风格）
+        self.copy_btn = RoundedButton(
             self._ai_btn_frame, text="📋 复制结果",
+            theme_color="primary", outline=True,
             command=self._copy_result,
-            bootstyle="outline-info",
+            height=36, font_size=10,
         )
         self.copy_btn.pack(side=LEFT, padx=(0, 8))
 
-        # 导出文本按钮
-        self.export_btn = ttk.Button(
+        # 导出文本按钮（描边风格）
+        self.export_btn = RoundedButton(
             self._ai_btn_frame, text="💾 导出文本",
+            theme_color="primary", outline=True,
             command=self._export_result,
-            bootstyle="outline-info",
+            height=36, font_size=10,
         )
         self.export_btn.pack(side=LEFT, padx=(0, 14))
 
-        self.ai_btn = ttk.Button(
+        # AI 按钮
+        self.ai_btn = RoundedButton(
             self._ai_btn_frame, text="🤖  AI 解卦",
+            theme_color="warning",
             command=self._request_ai_analysis,
-            bootstyle="warning", state=DISABLED,
+            height=36, font_size=10,
         )
         self.ai_btn.pack(side=LEFT, padx=(0, 10))
 
@@ -425,13 +423,14 @@ class DivinationPage:
         self._update_ai_button_state()
 
     def _update_ai_button_state(self):
+        c = get_theme_colors()
         if has_api_key():
-            self.ai_btn.configure(state=NORMAL)
-            self.ai_status.configure(text="已配置 API，可解读", foreground="#999999")
+            self.ai_btn.configure_state(True)
+            self.ai_status.configure(text="已配置 API，可解读", foreground=c["text_dim"])
         else:
-            self.ai_btn.configure(state=DISABLED)
+            self.ai_btn.configure_state(False)
             self.ai_status.configure(
-                text="未配置 API 密钥", foreground="#999999")
+                text="未配置 API 密钥", foreground=c["text_dim"])
 
     # ═══════════════════════════════════
     #  复制 / 导出
@@ -450,9 +449,8 @@ class DivinationPage:
         root.update()  # 确保剪贴板内容在 Windows 上持久化
 
         # 短暂显示复制成功
-        original = self.copy_btn.cget("text")
-        self.copy_btn.configure(text="✓ 已复制")
-        self.frame.after(1500, lambda: self.copy_btn.configure(text=original))
+        self.copy_btn.set_text("✓ 已复制")
+        self.frame.after(1500, lambda: self.copy_btn.set_text("📋 复制结果"))
 
     def _export_result(self):
         """导出卦象结果为文本文件"""
@@ -563,8 +561,10 @@ class DivinationPage:
         r.mark_gravity("ai_stream", "left")
         r.configure(state=DISABLED)
 
-        self.ai_btn.configure(state=DISABLED, text="解读中...")
-        self.ai_status.configure(text="正在请求 AI 解读...", foreground="#999999")
+        self.ai_btn.configure_state(False)
+        self.ai_btn.set_text("解读中...")
+        c = get_theme_colors()
+        self.ai_status.configure(text="正在请求 AI 解读...", foreground=c["text_dim"])
 
         collected = [""]
 
@@ -606,8 +606,8 @@ class DivinationPage:
                 self.frame.after(0, lambda: self._save_ai_to_history(text))
                 self.frame.after(0, lambda: self.ai_status.configure(
                     text="✓ 解读完成", foreground="#2ecc71"))
-                self.frame.after(0, lambda: self.ai_btn.configure(
-                    state=NORMAL, text="🤖  AI 解卦"))
+                self.frame.after(0, lambda: self.ai_btn.configure_state(True))
+                self.frame.after(0, lambda: self.ai_btn.set_text("🤖  AI 解卦"))
             except Exception as e:
                 self.frame.after(0, lambda: r.configure(state=NORMAL))
                 self.frame.after(0, lambda: r.delete("ai_stream", END))
@@ -615,7 +615,7 @@ class DivinationPage:
                 self.frame.after(0, lambda: r.configure(state=DISABLED))
                 self.frame.after(0, lambda: self.ai_status.configure(
                     text=f"失败：{e}", foreground="#e74c3c"))
-                self.frame.after(0, lambda: self.ai_btn.configure(
-                    state=NORMAL, text="🤖  AI 解卦"))
+                self.frame.after(0, lambda: self.ai_btn.configure_state(True))
+                self.frame.after(0, lambda: self.ai_btn.set_text("🤖  AI 解卦"))
 
         threading.Thread(target=run, daemon=True).start()

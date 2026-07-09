@@ -6,6 +6,7 @@ from ttkbootstrap.constants import *
 
 from storage.app_settings import load_settings, save_settings, AppSettings
 from ai.llm_client import test_connection
+from ui.theme import apply_custom_style, refresh_tk_widgets
 
 # 预设模型列表（2026年6月最新）
 PRESET_MODELS = [
@@ -198,12 +199,18 @@ class SettingsPage:
     # ── 主题选择逻辑 ──
 
     def _on_theme_selected(self, event=None):
-        """主题下拉框选择变化 —— 即时切换主题"""
+        """主题下拉框选择变化 —— 即时切换 + 自动保存"""
         new_theme = self.theme_var.get()
         if new_theme:
             root = self.frame.winfo_toplevel()
             if hasattr(root, 'style'):
                 root.style.theme_use(new_theme)
+                apply_custom_style()
+                refresh_tk_widgets()
+            # 自动保存主题偏好
+            settings = load_settings()
+            settings.theme = new_theme
+            save_settings(settings)
 
     # ── 模型选择逻辑 ──
 

@@ -1,0 +1,50 @@
+{
+    "themes": [
+        {
+            "yijing-dark": {
+                "type": "dark",
+                "colors": {
+                    "primary": "#c4734f",
+                    "secondary": "#7a7065",
+                    "success": "#6a9b7a",
+                    "info": "#8a9bb5",
+                    "warning": "#d4a040",
+                    "danger": "#c44a4a",
+                    "light": "#3a3228",
+                    "dark": "#e8ddd0",
+                    "bg": "#1a1410",
+                    "fg": "#e8ddd0",
+                    "selectbg": "#c4734f",
+                    "selectfg": "#f5ebe0",
+                    "border": "#3d342b",
+                    "inputfg": "#e8ddd0",
+                    "inputbg": "#231d17",
+                    "active": "#2b241d"
+                }
+            }
+        },
+        {
+            "yijing-light": {
+                "type": "light",
+                "colors": {
+                    "primary": "#7c6faf",
+                    "secondary": "#9a90b0",
+                    "success": "#5f8c6e",
+                    "info": "#7a9cbf",
+                    "warning": "#c89830",
+                    "danger": "#c45a5a",
+                    "light": "#f4f1f8",
+                    "dark": "#2a2238",
+                    "bg": "#f4f1f8",
+                    "fg": "#2a2238",
+                    "selectbg": "#7c6faf",
+                    "selectfg": "#ffffff",
+                    "border": "#d0cce0",
+                    "inputfg": "#2a2238",
+                    "inputbg": "#ffffff",
+                    "active": "#e5e0f0"
+                }
+            }
+        }
+    ]
+}

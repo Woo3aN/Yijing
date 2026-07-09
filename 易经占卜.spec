@@ -15,6 +15,7 @@ a = Analysis(
     datas=[
         # hexagrams.json → 运行时 data/ 目录
         (str(ROOT / 'src' / 'data' / 'hexagrams.json'), 'data'),
+        (str(ROOT / 'src' / 'data' / 'themes.json'), 'data'),
         # 图标文件 → 运行时 assets/ 目录
         (str(ROOT / 'assets' / 'icon.ico'), 'assets'),
         (str(ROOT / 'assets' / 'icon.png'), 'assets'),

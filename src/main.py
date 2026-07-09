@@ -16,6 +16,7 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 
 from ui.main_window import MainWindow
+from ui.theme import apply_custom_style
 from storage.app_settings import load_settings
 
 
@@ -30,7 +31,7 @@ def _get_path(relative_path: str) -> str:
 def main():
     # 从设置读取主题（默认 darkly）
     settings = load_settings()
-    theme = settings.theme if hasattr(settings, 'theme') else "darkly"
+    theme = settings.theme
 
     # 创建主窗口
     root = ttk.Window(
@@ -56,6 +57,9 @@ def main():
     # 设置全局默认字体
     default_font = ("等线", 10)
     root.option_add("*Font", default_font)
+
+    # 应用全局柔和样式（在所有主题之上）
+    apply_custom_style()
 
     # 启动主界面
     app = MainWindow(root)

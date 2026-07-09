@@ -35,7 +35,10 @@ class MainWindow:
         """标签页切换时刷新相应页面"""
         current_tab = self.notebook.select()
         tab_text = self.notebook.tab(current_tab, "text")
-        if "历史" in tab_text:
+        if "问卦" in tab_text:
+            # 切换回问卦页时刷新 Text 标签颜色（适配当前主题）
+            self.divination_page.refresh_text_tags()
+        elif "历史" in tab_text:
             self.history_page.refresh_list()
         elif "设置" in tab_text:
             self.settings_page.load_current_settings()
