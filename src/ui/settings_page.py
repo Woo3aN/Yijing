@@ -13,9 +13,9 @@ from storage.app_settings import load_settings, save_settings, AppSettings
 from ai.llm_client import test_connection
 
 PRESET_MODELS = [
-    # DeepSeek (2026.06 最新)
+    # DeepSeek
     "deepseek-v4-pro", "deepseek-v4-flash",
-    # 通义千问 (2026.06)
+    # 通义千问
     "qwen3.7-plus", "qwen3.6-flash",
     # 智谱 GLM
     "glm-5.2", "glm-4.7-flash",
@@ -23,13 +23,12 @@ PRESET_MODELS = [
     "gpt-5.5", "gpt-5.4-mini",
     # Anthropic Claude
     "claude-fable-5", "claude-sonnet-4-6",
-    # MiniMax (海螺 AI)
-    "minimax-m1", "minimax-abab7",
-    # 月之暗面 Moonshot / Kimi
-    "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k",
-    "kimi-latest", "kimi-thinking",
-    # 小米 MiMo
-    "mimo-v1", "mimo-v1-pro",
+    # Kimi (月之暗面) — 2026.06 最新
+    "kimi-k2.7-code", "kimi-k2.6", "kimi-k2.5",
+    # MiniMax (海螺 AI) — 2026.06 最新
+    "minimax-m3", "minimax-m2.7", "minimax-m2.5",
+    # 小米 MiMo — 2026.06 最新
+    "mimo-v2.5-pro", "mimo-v2.5",
     # 自定义
     "—— 自定义 ——",
 ]
@@ -40,9 +39,8 @@ MODEL_ENDPOINTS = {
     "glm": "https://open.bigmodel.cn/api/paas/v4",
     "gpt": "https://api.openai.com/v1",
     "claude": "https://api.anthropic.com",
-    "minimax": "https://api.minimax.chat/v1",
-    "moonshot": "https://api.moonshot.cn/v1",
     "kimi": "https://api.moonshot.cn/v1",
+    "minimax": "https://api.minimax.chat/v1",
     "mimo": "https://api.mimolm.chat/v1",
 }
 
