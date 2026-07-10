@@ -1,27 +1,24 @@
-"""易经占卜 —— 程序入口"""
+"""易经占卜 —— PySide6 入口"""
 
-import ctypes
 import sys
 import os
-import tkinter as tk
+import ctypes
 
-# 高 DPI 适配（Windows）
 if sys.platform == "win32":
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except Exception:
         pass
 
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import Qt
 
 from ui.main_window import MainWindow
-from ui.theme import apply_custom_style
 from storage.app_settings import load_settings
 
 
 def _get_path(relative_path: str) -> str:
-    """获取资源路径，兼容开发模式和 PyInstaller 打包"""
     if getattr(sys, 'frozen', False):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -29,41 +26,24 @@ def _get_path(relative_path: str) -> str:
 
 
 def main():
-    # 从设置读取主题（默认 darkly）
-    settings = load_settings()
-    theme = settings.theme
+    app = QApplication(sys.argv)
+    app.setApplicationName("易经占卜")
 
-    # 创建主窗口
-    root = ttk.Window(
-        themename=theme,
-        title="易经占卜",
-        size=(960, 740),
-        minsize=(720, 540),
-    )
+    # 全局默认字体 — 宋体有传统韵味
+    font = QFont("宋体", 10)
+    app.setFont(font)
 
-    # 设置八卦图标（双保险：iconbitmap + iconphoto）
+    # 图标
     try:
-        ico_path = _get_path("assets/icon.ico")
-        png_path = _get_path("assets/icon.png")
-        if os.path.exists(ico_path):
-            root.iconbitmap(ico_path)
-        if os.path.exists(png_path):
-            icon_img = tk.PhotoImage(file=png_path)
-            root.iconphoto(True, icon_img)
-            root._icon_image = icon_img  # 防止被垃圾回收
+        ico = _get_path("assets/icon.ico")
+        if os.path.exists(ico):
+            app.setWindowIcon(QIcon(ico))
     except Exception:
         pass
 
-    # 设置全局默认字体
-    default_font = ("等线", 10)
-    root.option_add("*Font", default_font)
-
-    # 应用全局柔和样式（在所有主题之上）
-    apply_custom_style()
-
-    # 启动主界面
-    app = MainWindow(root)
-    root.mainloop()
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

@@ -1,537 +1,383 @@
-"""问卦页面 —— 单 Text 原生滚动 + 富文本标签排版"""
+"""问卦页面 —— PySide6 版本"""
 
 import random
 import threading
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+import re
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton,
+    QLabel, QScrollArea, QFrame, QSizePolicy,
+)
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QFont
 
 from core.divination import (
     coin_method, random_method, perform_divination,
     line_value_to_chinese, is_changing_line,
     OLD_YIN, YOUNG_YANG, YOUNG_YIN, OLD_YANG,
+    lines_to_binary, get_binary_lookup, get_interpretation_rule, get_focus_text,
 )
 from core.text_loader import get_hexagram
 from storage.history_db import save_reading
 from storage.app_settings import has_api_key
-from ui.theme import (get_text_colors, get_theme_colors,
-                     RoundedButton, refresh_tk_widgets, register_tk_widget)
 
 COIN_GLYPHS = {0: "◯", 1: "●"}
-POS_NAMES   = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"]
+POS_NAMES = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"]
 CHANGE_DESC = {6: "老阴 → 少阳", 9: "老阳 → 少阴"}
 
 
-class DivinationPage:
-    """问卦标签页"""
+class DivinationPage(QWidget):
+    ai_done = Signal(str)
+    ai_error = Signal(str)
 
-    def __init__(self, parent: ttk.Notebook):
-        self.frame = ttk.Frame(parent)
-        self._current_result: dict | None = None
-        self._primary_data: dict | None = None
-        self._changed_data: dict | None = None
-        self._ai_stream_id: str | None = None
-        self._build_ui()
-        self._setup_tags()
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._current_result = None
+        self._primary_data = None
+        self._changed_data = None
+        self._lines = []
+        self._ai_text = None  # 保存 AI 解读，主题切换时恢复
+        self._setup_ui()
 
-    # ═══════════════════════════════════
-    #  Text 富文本标签
-    # ═══════════════════════════════════
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-    def _setup_tags(self):
-        """配置 Text 组件的富文本样式标签"""
-        self.refresh_text_tags()
+        # ── 输入区 ──
+        card1 = QFrame()
+        card1.setObjectName("card")
+        c1 = QVBoxLayout(card1)
+        title1 = QLabel("●  所 问 何 事")
+        title1.setObjectName("cardTitle")
+        c1.addWidget(title1)
 
-    def refresh_text_tags(self):
-        """刷新 Text 标签颜色（主题切换时调用）"""
-        r = self.result_text
-        c = get_text_colors()
+        self.question_edit = QTextEdit()
+        self.question_edit.setPlaceholderText("例如：我最近的事业运势如何？这次考试结果会怎样？")
+        self.question_edit.setMaximumHeight(72)
+        c1.addWidget(self.question_edit)
+        layout.addWidget(card1)
 
-        r.tag_configure("h1", font=("楷体", 17, "bold"), foreground=c["h1"])
-        r.tag_configure("h2", font=("楷体", 14, "bold"), foreground=c["h2"])
-        r.tag_configure("h3", font=("楷体", 12, "bold"), foreground=c["h3"])
-        r.tag_configure("body", font=("等线", 10), foreground=c["body"])
-        r.tag_configure("guaming", font=("楷体", 19, "bold"), foreground=c["h1"])
-        r.tag_configure("guafu", font=("Microsoft YaHei", 42), foreground=c["guafu"])
-        r.tag_configure("line_default", font=("楷体", 13), foreground=c["line_default"])
-        r.tag_configure("line_changed", font=("楷体", 13), foreground=c["line_changed"])
-        r.tag_configure("highlight", font=("楷体", 11, "bold"), foreground=c["highlight"])
-        r.tag_configure("tag_primary", font=("楷体", 11, "bold"), foreground=c["tag_primary"])
-        r.tag_configure("tag_change", font=("楷体", 11, "bold"), foreground=c["tag_change"])
-        r.tag_configure("warn", font=("等线", 10), foreground=c["warn"])
-        r.tag_configure("dim", font=("等线", 9), foreground=c["dim"])
-        r.tag_configure("sep", font=("等线", 4), foreground=c["sep"])
-        r.tag_configure("line_chg", font=("等线", 10, "bold"), foreground=c["line_chg"])
-        r.tag_configure("line_normal", font=("等线", 10), foreground=c["line_normal"])
-        r.tag_configure("placeholder", font=("楷体", 13), foreground=c["placeholder"],
-                        justify="center")
-        r.tag_configure("center", justify="center")
+        # ── 按钮区 ──
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
 
-    # ═══════════════════════════════════
-    #  UI 构建
-    # ═══════════════════════════════════
+        self.coin_btn = QPushButton("☰  三 铜 钱 法")
+        self.coin_btn.setObjectName("primaryBtn")
+        self.coin_btn.setCursor(Qt.PointingHandCursor)
+        self.coin_btn.clicked.connect(lambda: self._start("coins"))
+        btn_row.addWidget(self.coin_btn, 1)
 
-    def _build_ui(self):
-        """顶部固定 + 过程区 + 结果区（单 Text，富文本）"""
+        self.random_btn = QPushButton("✦  随 机 数 法")
+        self.random_btn.setObjectName("successBtn")
+        self.random_btn.setCursor(Qt.PointingHandCursor)
+        self.random_btn.clicked.connect(lambda: self._start("random"))
+        btn_row.addWidget(self.random_btn, 1)
 
-        # ── 顶部 ──
-        top = ttk.Frame(self.frame)
-        top.pack(fill=X, padx=16, pady=(16, 0))
-
-        input_frame = ttk.LabelFrame(top, text=" 所问何事 ")
-        input_frame.pack(fill=X)
-
-        self.question_text = ttk.Text(
-            input_frame, height=3, wrap=WORD, font=("等线", 11)
-        )
-        self.question_text.pack(fill=X, padx=10, pady=10)
-        self._placeholder = "例如：我最近的事业运势如何？这次考试结果会怎样？"
-        self.question_text.insert("1.0", self._placeholder)
-        self.question_text.configure(foreground="#888888")
-        self.question_text.bind("<FocusIn>", self._on_focus_in)
-        self.question_text.bind("<FocusOut>", self._on_focus_out)
-
-        btn_row = ttk.Frame(top)
-        btn_row.pack(fill=X, pady=(10, 0))
-
-        coin_col = ttk.Frame(btn_row)
-        coin_col.pack(side=LEFT, padx=(0, 16), fill=X, expand=YES)
-        c = get_theme_colors()
-        self.coin_btn = RoundedButton(
-            coin_col, text="☰  三 铜 钱 法",
-            theme_color="primary",
-            command=lambda: self._start_divination("coins"),
-            height=40, font_size=12,
-        )
-        self.coin_btn.pack(pady=(4, 2))
-        ttk.Label(coin_col, text="逐爻摇卦 · 传统仪式",
-                  font=("等线", 9), foreground=c["text_dim"]).pack()
-
-        rand_col = ttk.Frame(btn_row)
-        rand_col.pack(side=LEFT, fill=X, expand=YES)
-        self.random_btn = RoundedButton(
-            rand_col, text="✦  随 机 数 法",
-            theme_color="success",
-            command=lambda: self._start_divination("random"),
-            height=40, font_size=12,
-        )
-        self.random_btn.pack(pady=(4, 2))
-        ttk.Label(rand_col, text="一键生成 · 快速便捷",
-                  font=("等线", 9), foreground=c["text_dim"]).pack()
+        layout.addLayout(btn_row)
 
         # ── 过程区 ──
-        self.process_frame = ttk.LabelFrame(self.frame, text=" 摇卦过程 ")
-        self.process_text = ttk.Text(
-            self.process_frame, height=9, wrap=WORD,
-            font=("楷体", 11), state=DISABLED,
-            spacing2=3,
+        self.process_card = QFrame()
+        self.process_card.setObjectName("card")
+        pc = QVBoxLayout(self.process_card)
+        self.process_label = QLabel("  ·  摇 卦 过 程  ·  ")
+        self.process_label.setObjectName("cardSubTitle")
+        pc.addWidget(self.process_label)
+        self.process_text = QTextEdit()
+        self.process_text.setReadOnly(True)
+        self.process_text.setMaximumHeight(180)
+        pc.addWidget(self.process_text)
+        self.process_card.hide()
+        layout.addWidget(self.process_card)
+
+        # ── 结果区 ──
+        result_card = QFrame()
+        result_card.setObjectName("card")
+        rc = QVBoxLayout(result_card)
+        rlbl = QLabel("  ·  卦 象 结 果  ·  ")
+        rlbl.setObjectName("cardSubTitle")
+        rc.addWidget(rlbl)
+
+        self.result_text = QTextEdit()
+        self.result_text.setReadOnly(True)
+        rc.addWidget(self.result_text, 1)
+
+        # AI 按钮行
+        ai_row = QHBoxLayout()
+        self.copy_btn = QPushButton("📋 复制结果")
+        self.copy_btn.setObjectName("outlineBtn")
+        self.copy_btn.setCursor(Qt.PointingHandCursor)
+        self.copy_btn.clicked.connect(self._copy_result)
+        ai_row.addWidget(self.copy_btn)
+
+        self.export_btn = QPushButton("💾 导出文本")
+        self.export_btn.setObjectName("outlineBtn")
+        self.export_btn.setCursor(Qt.PointingHandCursor)
+        self.export_btn.clicked.connect(self._export_result)
+        ai_row.addWidget(self.export_btn)
+
+        ai_row.addStretch()
+        self.ai_btn = QPushButton("🤖  AI 解卦")
+        self.ai_btn.setObjectName("warnBtn")
+        self.ai_btn.setCursor(Qt.PointingHandCursor)
+        self.ai_btn.clicked.connect(self._request_ai)
+        ai_row.addWidget(self.ai_btn)
+        rc.addLayout(ai_row)
+
+        self.ai_status = QLabel()
+        self.ai_status.setObjectName("statusLabel")
+        rc.addWidget(self.ai_status)
+
+        self._update_ai_btn()
+
+        layout.addWidget(result_card, 1)
+
+        self._place_holder_text = "点击上方按钮开始起卦"
+        self._show_placeholder()
+
+        self.ai_done.connect(self._on_ai_done)
+        self.ai_error.connect(self._on_ai_error)
+
+    def refresh_theme(self):
+        """主题切换后重渲染，保留 AI 内容"""
+        if self._current_result and self._primary_data:
+            s = self.result_text.verticalScrollBar().value()
+            self._render_result()
+            if self._ai_text:
+                self._append_ai_html(self._ai_text)
+            self.result_text.verticalScrollBar().setValue(s)
+
+    def _append_ai_html(self, text: str):
+        """在结果末尾追加 AI 解读 HTML"""
+        current = self.result_text.toHtml()
+        ai_block = (
+            '<hr style="border-color:#2e2c24; margin:16px 0;">'
+            '<div>'
+            f'{self._format_ai(text)}'
+            '</div>'
         )
-        self.process_text.pack(fill=X, padx=10, pady=10)
+        self.result_text.setHtml(current + ai_block)
 
-        # ── 结果区：单 Text，原生滚动 ──
-        result_frame = ttk.LabelFrame(self.frame, text=" 卦象结果 ")
-        result_frame.pack(fill=BOTH, expand=YES, padx=16, pady=10)
+    def _update_ai_btn(self):
+        if has_api_key():
+            self.ai_btn.setEnabled(True)
+            self.ai_status.setText("已配置 API，可解读")
+        else:
+            self.ai_btn.setEnabled(False)
+            self.ai_status.setText("未配置 API 密钥")
+        self.ai_status.setObjectName("statusLabel")
 
-        self.result_text = ttk.Text(
-            result_frame, wrap=WORD, font=("等线", 10),
-            state=DISABLED, spacing2=1,
+    def _show_placeholder(self):
+        self.result_text.setHtml(
+            '<div style="text-align:center; padding:60px 0; color:#5e5a4e; font-size:18px; font-family:楷体,KaiTi,serif;">'
+            f'☯<br><br>{self._place_holder_text}</div>'
         )
-        scrollbar = ttk.Scrollbar(result_frame, orient=VERTICAL,
-                                  command=self.result_text.yview)
-        self.result_text.configure(yscrollcommand=scrollbar.set)
 
-        self.result_text.pack(side=LEFT, fill=BOTH, expand=YES, padx=(8, 0), pady=8)
-        scrollbar.pack(side=RIGHT, fill=Y, padx=(0, 4), pady=8)
+    # ═══ 起卦 ═══
 
-        # 初始提示
-        self._show_placeholder("点击上方按钮开始起卦")
-
-    # ═══════════════════════════════════
-    #  输入框交互
-    # ═══════════════════════════════════
-
-    def _on_focus_in(self, event):
-        if self.question_text.get("1.0", "end-1c") == self._placeholder:
-            self.question_text.delete("1.0", END)
-            c = get_text_colors()
-            self.question_text.configure(foreground=c["h1"])
-
-    def _on_focus_out(self, event):
-        if not self.question_text.get("1.0", "end-1c").strip():
-            self.question_text.insert("1.0", self._placeholder)
-            c = get_text_colors()
-            self.question_text.configure(foreground=c["placeholder"])
-
-    def _get_question(self) -> str:
-        text = self.question_text.get("1.0", "end-1c").strip()
-        return "" if text == self._placeholder else text
-
-    def _show_placeholder(self, text: str):
-        """显示占位提示"""
-        self.result_text.configure(state=NORMAL)
-        self.result_text.delete("1.0", END)
-        self.result_text.insert("1.0", f"\n\n\n\n    ☯\n\n    {text}\n\n\n", ("placeholder",))
-        self.result_text.configure(state=DISABLED)
-
-    # ═══════════════════════════════════
-    #  起卦
-    # ═══════════════════════════════════
-
-    def _start_divination(self, method: str):
-        self.coin_btn.configure_state(False)
-        self.random_btn.configure_state(False)
-        self._cancel_ai_stream()
-
-        self.process_frame.pack(fill=X, padx=16, pady=(0, 6),
-                                before=self.result_text.master)
-        self.process_text.configure(state=NORMAL)
-        self.process_text.delete("1.0", END)
-        self.process_text.insert(END, "起卦中……\n\n")
-
-        self.result_text.configure(state=NORMAL)
-        self.result_text.delete("1.0", END)
-        self.result_text.configure(state=DISABLED)
+    def _start(self, method: str):
+        self.coin_btn.setEnabled(False)
+        self.random_btn.setEnabled(False)
+        QTimer.singleShot(8000, self._re_enable_buttons)  # 8秒兜底
+        self._lines = []
+        self.process_text.clear()
 
         if method == "coins":
-            self._do_coin_method()
+            self.process_card.show()
+            self.process_text.append("起卦中……\n")
+            self._toss_line(0)
         else:
-            self._do_random_method()
+            lines = random.choices([OLD_YIN, YOUNG_YANG, YOUNG_YIN, OLD_YANG],
+                                   weights=[1, 3, 3, 1], k=6)
+            self._lines = lines
+            self._show_result("random")
 
-    def _do_coin_method(self):
-        lines = []
+    def _re_enable_buttons(self):
+        """恢复起卦按钮（安全兜底）"""
+        self.coin_btn.setEnabled(True)
+        self.random_btn.setEnabled(True)
 
-        def toss_line(i: int):
-            if i >= 6:
-                self._show_result(lines, "coins")
-                return
-
-            coins = [random.randint(0, 1) for _ in range(3)]
-            heads = sum(coins)
-            value = [OLD_YIN, YOUNG_YANG, YOUNG_YIN, OLD_YANG][heads]
-            lines.append(value)
-
-            label = line_value_to_chinese(value)
-            coin_row = "  ".join(COIN_GLYPHS[c] for c in coins)
-            is_chg = is_changing_line(value)
-
-            # 格式化：爻位 │ 铜钱 │ 结果
-            pos = f"  {POS_NAMES[i]:　<4s}"
-            coins_display = f"  {coin_row}"
-            result = f"→  {label}（{value}）"
-            mark = "  ◈ 变爻" if is_chg else ""
-
-            line = f"{pos}│{coins_display}  │  {result}{mark}\n"
-            self.process_text.insert(END, line)
-            self.process_text.see(END)
-            self.frame.after(500, lambda: toss_line(i + 1))
-
-        toss_line(0)
-
-    def _do_random_method(self):
-        lines = random.choices(
-            [OLD_YIN, YOUNG_YANG, YOUNG_YIN, OLD_YANG],
-            weights=[1, 3, 3, 1], k=6
+    def _toss_line(self, i: int):
+        if i >= 6:
+            self._show_result("coins")
+            return
+        coins = [random.randint(0, 1) for _ in range(3)]
+        heads = sum(coins)
+        value = [OLD_YIN, YOUNG_YANG, YOUNG_YIN, OLD_YANG][heads]
+        self._lines.append(value)
+        label = line_value_to_chinese(value)
+        coin_row = "  ".join(COIN_GLYPHS[c] for c in coins)
+        is_chg = is_changing_line(value)
+        mark = "  ◈ 变爻" if is_chg else ""
+        self.process_text.append(
+            f"  {POS_NAMES[i]}　{coin_row}　→  {label}（{value}）{mark}"
         )
-        for i, v in enumerate(lines):
-            label = line_value_to_chinese(v)
-            mark = "  ◈ 变爻" if is_changing_line(v) else ""
-            self.process_text.insert(END,
-                f"  {POS_NAMES[i]}   →   ({v})  {label}{mark}\n"
+        QTimer.singleShot(400, lambda: self._toss_line(i + 1))
+
+    # ═══ 结果 ═══
+
+    def _show_result(self, method: str):
+        try:
+            from core.divination import lines_to_binary, get_binary_lookup
+            primary_bin, changed_bin, changing = lines_to_binary(self._lines)
+            lookup = get_binary_lookup()
+            primary_num = lookup[primary_bin]
+            changed_num = lookup[changed_bin] if changed_bin else None
+
+            self._primary_data = get_hexagram(primary_num)
+            self._changed_data = get_hexagram(changed_num) if changed_num else None
+            self._current_result = {
+                "lines": self._lines, "primary_binary": primary_bin,
+                "changed_binary": changed_bin, "changing_lines": changing,
+                "primary_number": primary_num, "changed_number": changed_num,
+            }
+            self._render_result()
+
+            self.process_card.hide()
+            save_reading(
+                question=self._get_question(), method=method, lines=self._lines,
+                hexagram_number=primary_num, hexagram_name=self._primary_data["name"],
+                changed_hexagram_number=changed_num,
+                changed_hexagram_name=self._changed_data["name"] if self._changed_data else None,
             )
-        self._show_result(lines, "random")
+        except Exception as e:
+            self.result_text.setPlainText(f"渲染出错：{e}")
+        finally:
+            self._update_ai_btn()
+            self.coin_btn.setEnabled(True)
+            self.random_btn.setEnabled(True)
 
-    # ═══════════════════════════════════
-    #  结果渲染（带富文本标签）
-    # ═══════════════════════════════════
+    def _is_dark(self):
+        """判断当前是否为深色主题"""
+        from ui.main_window import IS_DARK_THEME
+        return IS_DARK_THEME
 
-    def _show_result(self, lines: list[int], method: str):
-        from core.divination import lines_to_binary, get_binary_lookup
+    def _tc(self, dark_hex, light_hex=None):
+        """返回适配当前主题的颜色"""
+        if self._is_dark():
+            return dark_hex
+        return light_hex or dark_hex  # 如果没指定浅色，适当调暗
 
-        primary_bin, changed_bin, changing = lines_to_binary(lines)
-        lookup = get_binary_lookup()
-        primary_num = lookup[primary_bin]
-        changed_num = lookup[changed_bin] if changed_bin else None
+    def _render_result(self):
+        """渲染卦象结果为 HTML"""
+        changing = self._current_result.get("changing_lines", [])
+        text = self._tc("#f0ece0", "#1c1915")  # 正文色
+        dim = self._tc("#5e5a4e", "#3a3630")
+        secondary = self._tc("#9b9788", "#2e2a25")
+        parts = []
 
-        self._primary_data = get_hexagram(primary_num)
-        self._changed_data = get_hexagram(changed_num) if changed_num else None
-        self._current_result = {
-            "lines": lines, "primary_binary": primary_bin,
-            "changed_binary": changed_bin, "changing_lines": changing,
-            "primary_number": primary_num, "changed_number": changed_num,
-        }
-
-        r = self.result_text
-        r.configure(state=NORMAL)
-        r.delete("1.0", END)
-
-        # ── 六爻线条图 ──
-        self._ins(r, "\n", ("center",))
+        # 六爻图
+        parts.append('<div style="text-align:center; font-family:楷体,KaiTi,serif; font-size:17px; line-height:2.2;">')
         for i in range(5, -1, -1):
-            v = lines[i]
+            v = self._lines[i]
             is_chg = is_changing_line(v)
             is_yang = v in (YOUNG_YANG, OLD_YANG)
-            bar = "━━━━━━━━━━━━━━━━━━" if is_yang else "━━━━━━━━　　━━━━━━━━"
-            # 变爻在行首用 ◆ 标记，后缀统一为 "   初爻"（4空格+爻名）
-            prefix = " ◆" if is_chg else "   "
-            suffix = f"    {POS_NAMES[i]}"
-            style = "line_changed" if is_chg else "line_default"
-            self._ins(r, prefix + bar + suffix + "\n", (style, "center"))
+            # 用等宽的 ━ 和全角空格保证对齐：14 个全角字符宽
+            bar = "━━━━━━━━━━━━━━" if is_yang else "━━━━━━　　━━━━━━"
+            prefix = " ◆ " if is_chg else "    "
+            color = "#ca8a04" if is_chg else secondary
+            parts.append(f'<pre style="color:{color}; font-family:楷体,KaiTi,serif; font-size:15px; '
+                         f'margin:2px 0; line-height:1.6; white-space:pre;">'
+                         f'{prefix}{bar}  {POS_NAMES[i]}</pre>')
+        parts.append('</div><br>')
 
-        self._ins_sep(r)
+        # 本卦
+        parts.append(self._fmt_hex(self._primary_data, "本  卦", "#ca8a04", changing))
 
-        # ── 本卦 ──
-        self._ins_hexagram(r, self._primary_data, "本  卦", "tag_primary",
-                           changing_lines=changing)
-
-        # ── 变卦 ──
+        # 变卦
         if self._changed_data:
-            self._ins_sep(r)
-            self._ins_hexagram(r, self._changed_data, "变  卦", "tag_change")
+            parts.append(self._fmt_hex(self._changed_data, "变  卦", "#0d9488"))
 
-        # ── 变爻详情 ──
+        # 变爻
         if changing:
-            self._ins_sep(r)
-            self._ins(r, "变爻详情\n", ("h2",))
+            parts.append(f'<div style="color:{text}; font-size:16px;">')
+            parts.append('<b>变 爻 详 情</b><br>')
             for pos in changing:
                 ld = self._primary_data["lines"][pos - 1]
-                desc = CHANGE_DESC.get(lines[pos - 1], "")
-                self._ins(r, f"  第{pos}爻  {ld['label']}：{ld['text']}　", ("body",))
-                self._ins(r, f"← {desc}\n", ("warn",))
-                self._ins(r, f"      {ld['xiang']}\n\n", ("dim",))
+                desc = CHANGE_DESC.get(self._lines[pos - 1], "")
+                parts.append(f'  第 {pos} 爻  {ld["label"]}：{ld["text"]}<br>')
+                parts.append(f'  <span style="color:#ca8a04">→ {desc}</span><br>')
+                parts.append(f'  <span style="color:{dim}">{ld["xiang"]}</span><br><br>')
+            parts.append('</div>')
 
-        # ── 朱熹断卦规则 ──
-        self._ins_sep(r)
-        self._ins_zhuxi(r, lines)
+        # 朱熹
+        parts.append(self._fmt_zhuxi())
 
-        # ── AI 区域占位 ──
-        self._ins_sep(r)
-        self._ins(r, "AI 解读\n", ("h2",))
-        self._ins(r, "（配置 API 密钥后点击 AI 解卦按钮）\n", ("dim",))
-        # 在占位文本之后设一个 mark，AI 内容都从这里开始
-        r.mark_set("ai_content_start", END + "-1c")
-        r.mark_gravity("ai_content_start", "left")
+        # AI 占位
+        parts.append(f'<div style="color:{dim}; font-size:11px;">')
+        parts.append('<b>AI 解 读</b><br>（配置 API 密钥后点击 AI 解卦按钮）</div>')
 
-        r.configure(state=DISABLED)
-        r.see("1.0")  # 回到顶部
+        html = '<div style="font-size:17px;">' + "".join(parts) + '</div>'
+        self.result_text.setHtml(html)
 
-        self.process_frame.pack_forget()
-        self._show_ai_button()
-
-        save_reading(
-            question=self._get_question(), method=method, lines=lines,
-            hexagram_number=primary_num, hexagram_name=self._primary_data["name"],
-            changed_hexagram_number=changed_num,
-            changed_hexagram_name=self._changed_data["name"] if self._changed_data else None,
-        )
-
-        self.coin_btn.configure_state(True)
-        self.random_btn.configure_state(True)
-
-    # ── 插入辅助函数 ──
-
-    def _ins(self, r, text: str, tags=()):
-        r.insert(END, text, tags)
-
-    def _ins_sep(self, r):
-        self._ins(r, "─" * 50 + "\n", ("sep",))
-
-    def _ins_hexagram(self, r, data: dict, badge: str, badge_tag: str,
-                      changing_lines=None):
-        """插入卦象卡片"""
-        self._ins(r, f" {badge}  ", (badge_tag,))
-        self._ins(r, f"{data['symbol']}  ", ("guafu",))
-        self._ins(r, f"{data['name']}\n", ("guaming",))
-        self._ins(r, f"第 {data['number']} 卦　·　{data['pinyin']}\n", ("dim",))
-        self._ins(r, f"上{data['upper_trigram']}　下{data['lower_trigram']}\n\n", ("dim",))
-
-        self._ins(r, "卦　辞　", ("h3",))
-        self._ins(r, f"{data['judgment']}\n\n", ("body",))
-
-        self._ins(r, "彖　传　", ("h3",))
-        self._ins(r, f"{data['tuan_zhuan']}\n\n", ("body",))
-
-        self._ins(r, "大象传　", ("h3",))
-        self._ins(r, f"{data['xiang_zhuan']}\n\n", ("body",))
-
-        self._ins(r, "爻　辞\n", ("h3",))
+    def _fmt_hex(self, data, badge, badge_color, changing=None):
+        dim = self._tc("#5e5a4e", "#3a3630")
+        secondary = self._tc("#9b9788", "#2e2a25")
+        p = f"""<div style="margin:12px 0;">
+        <span style="color:{badge_color}; font-weight:bold;">  {badge}</span><br>
+        <span style="font-size:46px; font-family:楷体,KaiTi,serif;">{data['symbol']}</span>
+        <span style="font-size:23px; font-weight:bold; font-family:楷体,KaiTi,serif;">  {data['name']}</span><br>
+        <span style="color:{dim}; font-size:14px;">第 {data['number']} 卦  ·  {data['pinyin']}</span><br>
+        <span style="color:{dim}; font-size:14px;">上 {data['upper_trigram']}　下 {data['lower_trigram']}</span><br><br>
+        <b style="font-family:楷体,KaiTi,serif; font-size:18px;">　卦　辞</b><br>{data['judgment']}<br><br>
+        <b style="font-family:楷体,KaiTi,serif; font-size:18px;">　彖　传</b><br>{data['tuan_zhuan']}<br><br>
+        <b style="font-family:楷体,KaiTi,serif; font-size:18px;">　大象传</b><br>{data['xiang_zhuan']}<br><br>
+        <b style="font-family:楷体,KaiTi,serif; font-size:18px;">　爻　辞</b><br>"""
         for line in data["lines"]:
-            is_chg = changing_lines and line["position"] in changing_lines
-            tag = "line_chg" if is_chg else "line_normal"
+            is_chg = changing and line["position"] in changing
+            c = "#ca8a04" if is_chg else secondary
             prefix = "◆" if is_chg else "·"
-            self._ins(r, f"  {prefix} {line['label']}：{line['text']}\n", (tag,))
+            p += f'<span style="color:{c}; font-family:楷体,KaiTi,serif;">  {prefix} {line["label"]}：{line["text"]}</span><br>'
+        p += '</div>'
+        return p
 
-    def _ins_zhuxi(self, r, lines: list[int]):
-        """插入朱熹断卦规则"""
-        from core.divination import get_interpretation_rule, get_focus_text
-
-        n = sum(1 for v in lines if v in (OLD_YIN, OLD_YANG))
+    def _fmt_zhuxi(self):
+        n = sum(1 for v in self._lines if v in (OLD_YIN, OLD_YANG))
         rule = get_interpretation_rule(n)
-        focus = get_focus_text(lines, self._primary_data, self._changed_data)
+        focus = get_focus_text(self._lines, self._primary_data, self._changed_data)
+        return f"""<div style="margin:16px 0;">
+        <b style="font-family:楷体,KaiTi,serif; font-size:16px;">断 卦 规 则</b><br>
+        <span style="color:#ca8a04;">  朱熹《周易启蒙》 · {rule['rule']}</span><br>
+        {rule['description']}<br><br>
+        <b style="color:#ca8a04;">▽  重点看：{focus['focus_title']}</b><br>
+        {focus['focus_content'].replace(chr(10), '<br>')}
+        </div>"""
 
-        self._ins(r, "断卦规则\n", ("h2",))
-        self._ins(r, f"朱熹《周易启蒙》· {rule['rule']}\n", ("warn",))
-        self._ins(r, f"{rule['description']}\n\n", ("body",))
-
-        self._ins(r, f"▼ 重点看：{focus['focus_title']}\n", ("highlight",))
-        self._ins(r, "\n", ())
-        for line in focus["focus_content"].split("\n"):
-            self._ins(r, f"  {line}\n", ("body",))
-
-    # ═══════════════════════════════════
-    #  AI
-    # ═══════════════════════════════════
-
-    def _show_ai_button(self):
-        if hasattr(self, '_ai_btn_frame'):
-            self._ai_btn_frame.destroy()
-
-        self._ai_btn_frame = ttk.Frame(self.result_text.master)
-        self._ai_btn_frame.pack(anchor=E, padx=10, pady=(6, 0),
-                                before=self.result_text)
-
-        # 复制结果按钮（描边风格）
-        self.copy_btn = RoundedButton(
-            self._ai_btn_frame, text="📋 复制结果",
-            theme_color="primary", outline=True,
-            command=self._copy_result,
-            height=36, font_size=10,
-        )
-        self.copy_btn.pack(side=LEFT, padx=(0, 8))
-
-        # 导出文本按钮（描边风格）
-        self.export_btn = RoundedButton(
-            self._ai_btn_frame, text="💾 导出文本",
-            theme_color="primary", outline=True,
-            command=self._export_result,
-            height=36, font_size=10,
-        )
-        self.export_btn.pack(side=LEFT, padx=(0, 14))
-
-        # AI 按钮
-        self.ai_btn = RoundedButton(
-            self._ai_btn_frame, text="🤖  AI 解卦",
-            theme_color="warning",
-            command=self._request_ai_analysis,
-            height=36, font_size=10,
-        )
-        self.ai_btn.pack(side=LEFT, padx=(0, 10))
-
-        self.ai_status = ttk.Label(self._ai_btn_frame, text="", font=("等线", 9))
-        self.ai_status.pack(side=LEFT)
-
-        self._update_ai_button_state()
-
-    def _update_ai_button_state(self):
-        c = get_theme_colors()
-        if has_api_key():
-            self.ai_btn.configure_state(True)
-            self.ai_status.configure(text="已配置 API，可解读", foreground=c["text_dim"])
-        else:
-            self.ai_btn.configure_state(False)
-            self.ai_status.configure(
-                text="未配置 API 密钥", foreground=c["text_dim"])
-
-    # ═══════════════════════════════════
-    #  复制 / 导出
-    # ═══════════════════════════════════
-
-    def _get_result_text(self) -> str:
-        """获取卦象结果的纯文本内容"""
-        return self.result_text.get("1.0", "end-1c")
+    def _get_question(self) -> str:
+        t = self.question_edit.toPlainText().strip()
+        return t if t != "例如：我最近的事业运势如何？这次考试结果会怎样？" else ""
 
     def _copy_result(self):
-        """复制卦象结果到剪贴板"""
-        text = self._get_result_text()
-        root = self.frame.winfo_toplevel()
-        root.clipboard_clear()
-        root.clipboard_append(text)
-        root.update()  # 确保剪贴板内容在 Windows 上持久化
-
-        # 短暂显示复制成功
-        self.copy_btn.set_text("✓ 已复制")
-        self.frame.after(1500, lambda: self.copy_btn.set_text("📋 复制结果"))
+        text = self.result_text.toPlainText()
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setText(text)
+        self.copy_btn.setText("✓ 已复制")
+        QTimer.singleShot(1500, lambda: self.copy_btn.setText("📋 复制结果"))
 
     def _export_result(self):
-        """导出卦象结果为文本文件"""
-        text = self._get_result_text()
-        filepath = filedialog.asksaveasfilename(
-            parent=self.frame,
-            title="导出卦象结果",
-            defaultextension=".txt",
-            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")],
-            initialfile="易经占卜结果.txt",
-        )
-        if not filepath:
-            return  # 用户取消
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getSaveFileName(self, "导出卦象结果", "易经占卜结果.txt",
+                                               "文本文件 (*.txt)")
+        if path:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(self.result_text.toPlainText())
+                QMessageBox.information(self, "导出成功", f"卦象结果已保存到：\n{path}")
+            except Exception as e:
+                QMessageBox.critical(self, "导出失败", f"保存文件时出错：{e}")
 
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(text)
-            messagebox.showinfo("导出成功", f"卦象结果已保存到：\n{filepath}")
-        except Exception as e:
-            messagebox.showerror("导出失败", f"保存文件时出错：{e}")
+    # ═══ AI ═══
 
-    def _apply_ai_highlight(self):
-        """扫描 AI 结果，自动给疑似小标题加粗"""
-        import re
-        r = self.result_text
-        r.configure(state=NORMAL)
-        # 从 ai_stream mark 开始到末尾
-        start = r.index("ai_stream")
-        end = r.index(END + "-1c")
-        text = r.get(start, end)
-        lines = text.split("\n")
-        pos = start
-        for line in lines:
-            stripped = line.strip()
-            is_heading = False
-            # 模式匹配：小标题特征
-            if len(stripped) >= 4:
-                # 数字前缀行（"一、" "1."）≤20字 → 标题
-                num_match = re.match(r'^[一二三四五六七八九十\d]+[、.．）\)]\s*', stripped)
-                if num_match and len(stripped) <= 20:
-                    is_heading = True
-                # 冒号结尾且很短（≤12字）→ 标题（如 "综合建议："）
-                elif len(stripped) <= 12 and re.match(r'^.{2,11}[：:]$', stripped):
-                    is_heading = True
-                # 仅含关键词的极短行（≤10字）→ 标题
-                elif len(stripped) <= 10 and ('启示' in stripped or '建议' in stripped or '总结' in stripped or '分析' in stripped):
-                    is_heading = True
-            if is_heading:
-                line_start = f"{pos} +{len(line) - len(stripped)}c"
-                line_end = f"{line_start} +{len(stripped)}c"
-                r.tag_add("highlight", line_start, line_end)
-            # 移动到下一行
-            pos = r.index(f"{pos} +1 line")
-        r.configure(state=DISABLED)
-
-    def _save_ai_to_history(self, ai_text: str):
-        """将 AI 解读结果更新到最近一条历史记录"""
-        try:
-            from storage.history_db import get_all_readings
-            records = get_all_readings(limit=1, offset=0)
-            if records:
-                rid = records[0]["id"]
-                from storage.history_db import update_ai_analysis
-                update_ai_analysis(rid, ai_text)
-        except Exception:
-            pass  # 静默处理，不影响主流程
-
-    def _cancel_ai_stream(self):
-        if self._ai_stream_id:
-            self.frame.after_cancel(self._ai_stream_id)
-            self._ai_stream_id = None
-
-    def _request_ai_analysis(self):
+    def _request_ai(self):
         if not self._current_result or not self._primary_data:
             return
         if not has_api_key():
-            self.ai_status.configure(text="请先在「设置」中配置 API 密钥",
-                                     foreground="#e74c3c")
+            self.ai_status.setText("请先在「设置」中配置 API 密钥")
             return
 
-        self._cancel_ai_stream()
+        self.ai_btn.setEnabled(False)
+        self.ai_btn.setText("解读中...")
+        self.ai_status.setText("正在请求 AI 解读...")
 
         lines_detail = "\n".join(
             f"{l['label']}：{l['text']}" for l in self._primary_data["lines"]
@@ -543,38 +389,11 @@ class DivinationPage:
                      for p in changing_lines]
             changing_info = "\n".join(parts)
 
-        from core.divination import get_focus_text
         focus = get_focus_text(
             self._current_result["lines"], self._primary_data, self._changed_data
         )
         zhuxi_rule = f"{focus['rule']}：{focus['description']}"
         zhuxi_focus = f"【{focus['focus_title']}】\n{focus['focus_content']}"
-
-        # 在结果末尾追加 AI 区域（用 mark 精确定位，杜绝位置错误）
-        r = self.result_text
-        r.configure(state=NORMAL)
-        # 删除 ai_content_start mark 之后的一切旧内容
-        r.delete("ai_content_start", END)
-        # 插入加载提示，并在其后设 stream mark
-        r.insert(END, "\nAI 解读中...\n")
-        r.mark_set("ai_stream", END + "-1c")
-        r.mark_gravity("ai_stream", "left")
-        r.configure(state=DISABLED)
-
-        self.ai_btn.configure_state(False)
-        self.ai_btn.set_text("解读中...")
-        c = get_theme_colors()
-        self.ai_status.configure(text="正在请求 AI 解读...", foreground=c["text_dim"])
-
-        collected = [""]
-
-        def clean_md(text: str) -> str:
-            import re
-            text = re.sub(r'#{2,}\s*', '', text)
-            text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-            text = re.sub(r'\*(.+?)\*', r'\1', text)
-            text = re.sub(r'`(.+?)`', r'\1', text)
-            return text
 
         def run():
             try:
@@ -595,27 +414,79 @@ class DivinationPage:
                     zhuxi_rule=zhuxi_rule,
                     zhuxi_focus=zhuxi_focus,
                 )
-                text = clean_md(result)
-
-                self.frame.after(0, lambda: r.configure(state=NORMAL))
-                self.frame.after(0, lambda: r.delete("ai_stream", END))
-                self.frame.after(0, lambda: r.insert(END, "\n" + text + "\n"))
-                self.frame.after(0, lambda: self._apply_ai_highlight())
-                self.frame.after(0, lambda: r.configure(state=DISABLED))
-                # 保存 AI 结果到历史记录
-                self.frame.after(0, lambda: self._save_ai_to_history(text))
-                self.frame.after(0, lambda: self.ai_status.configure(
-                    text="✓ 解读完成", foreground="#2ecc71"))
-                self.frame.after(0, lambda: self.ai_btn.configure_state(True))
-                self.frame.after(0, lambda: self.ai_btn.set_text("🤖  AI 解卦"))
+                text = re.sub(r'#{2,}\s*', '', result)
+                text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+                self.ai_done.emit(text)
             except Exception as e:
-                self.frame.after(0, lambda: r.configure(state=NORMAL))
-                self.frame.after(0, lambda: r.delete("ai_stream", END))
-                self.frame.after(0, lambda: r.insert(END, f"请求失败：{e}\n"))
-                self.frame.after(0, lambda: r.configure(state=DISABLED))
-                self.frame.after(0, lambda: self.ai_status.configure(
-                    text=f"失败：{e}", foreground="#e74c3c"))
-                self.frame.after(0, lambda: self.ai_btn.configure_state(True))
-                self.frame.after(0, lambda: self.ai_btn.set_text("🤖  AI 解卦"))
+                self.ai_error.emit(str(e))
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _format_ai(self, text: str) -> str:
+        """将 AI 返回的纯文本转为格式化 HTML"""
+        # 去掉 emoji
+        import re as _re
+        text = _re.sub(r'[\U0001F300-\U0001F9FF☀-➿⭐✀-➿️‍]', '', text)
+        lines = text.split('\n')
+        parts = []
+        prev_empty = False
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                if not prev_empty:
+                    parts.append('<br>')
+                    prev_empty = True
+                continue
+            prev_empty = False
+            # 标题行检测：数字开头、**粗体**、或以"]" "：" 结尾的短行
+            is_heading = False
+            if len(stripped) <= 22 and ('：' in stripped or '：' in stripped or
+                                         '启示' in stripped or '建议' in stripped or
+                                         '总结' in stripped or '分析' in stripped or
+                                         '趋势' in stripped or '含义' in stripped or
+                                         '变化' in stripped):
+                is_heading = True
+            if re.match(r'^[一二三四五六七八九十\d]+[、.．）\)]', stripped):
+                is_heading = True
+            if stripped.startswith('**') and stripped.endswith('**'):
+                stripped = stripped[2:-2]
+                is_heading = True
+            if is_heading:
+                parts.append(f'<p style="color:#ca8a04; font-size:17px; font-weight:bold; '
+                             f'margin:6px 0 1px 0; font-family:楷体,KaiTi,serif;">{stripped}</p>')
+            else:
+                parts.append(f'<span style="font-size:16px; line-height:1.4;">{stripped}</span><br>')
+        return ''.join(parts)
+
+    def _on_ai_done(self, text: str):
+        # 去掉 emoji
+        import re as _re
+        text = _re.sub(r'[\U0001F300-\U0001F9FF☀-➿⭐✀-➿️‍]', '', text)
+        scroll = self.result_text.verticalScrollBar().value()
+        self._append_ai_html(text)
+        self.result_text.verticalScrollBar().setValue(scroll)
+        self._ai_text = text
+        try:
+            from storage.history_db import get_all_readings, update_ai_analysis
+            records = get_all_readings(limit=1, offset=0)
+            if records:
+                update_ai_analysis(records[0]["id"], text)
+        except Exception:
+            pass
+        self.ai_btn.setEnabled(True)
+        self.ai_btn.setText("🤖  AI 解卦")
+        self.ai_status.setText("✓ 解读完成")
+        self._ai_text = text
+
+    def _on_ai_error(self, msg: str):
+        current = self.result_text.toHtml()
+        self.result_text.setHtml(
+            current +
+            f'<div style="color:#c44a4a; font-size:15px; padding:8px 0;">请求失败：{msg}</div>'
+        )
+        self.ai_btn.setEnabled(True)
+        self.ai_btn.setText("🤖  AI 解卦")
+        self.ai_status.setText(f"失败：{msg}")
+
+    def refresh_text_tags(self):
+        pass  # PySide6 doesn't need tag refresh

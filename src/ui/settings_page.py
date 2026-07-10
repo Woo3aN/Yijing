@@ -1,294 +1,223 @@
-"""设置页面 —— API 配置"""
+"""设置页面 —— 全局 QSS 统一样式"""
 
 import threading
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QComboBox, QFrame, QSizePolicy,
+)
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 
 from storage.app_settings import load_settings, save_settings, AppSettings
 from ai.llm_client import test_connection
-from ui.theme import apply_custom_style, refresh_tk_widgets
 
-# 预设模型列表（2026年6月最新）
 PRESET_MODELS = [
-    # DeepSeek
-    "deepseek-v4-pro",
-    "deepseek-v4-flash",
-    # Qwen (通义千问)
-    "qwen3.7-plus",
-    "qwen3.6-flash",
-    # GLM (智谱)
-    "glm-5.2",
-    "glm-4.7-flash",
-    # GPT (OpenAI)
-    "gpt-5.5",
-    "gpt-5.4-mini",
-    # Claude (Anthropic)
-    "claude-fable-5",
-    "claude-sonnet-4-6",
+    # DeepSeek (2026.06 最新)
+    "deepseek-v4-pro", "deepseek-v4-flash",
+    # 通义千问 (2026.06)
+    "qwen3.7-plus", "qwen3.6-flash",
+    # 智谱 GLM
+    "glm-5.2", "glm-4.7-flash",
+    # OpenAI
+    "gpt-5.5", "gpt-5.4-mini",
+    # Anthropic Claude
+    "claude-fable-5", "claude-sonnet-4-6",
+    # MiniMax (海螺 AI)
+    "minimax-m1", "minimax-abab7",
+    # 月之暗面 Moonshot / Kimi
+    "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k",
+    "kimi-latest", "kimi-thinking",
+    # 小米 MiMo
+    "mimo-v1", "mimo-v1-pro",
     # 自定义
     "—— 自定义 ——",
 ]
 
-# 模型 → API 地址映射（切换模型时自动填充）
-# 注意：Claude 原生 API 不兼容 OpenAI SDK，需使用兼容代理
 MODEL_ENDPOINTS = {
     "deepseek": "https://api.deepseek.com",
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "glm": "https://open.bigmodel.cn/api/paas/v4",
     "gpt": "https://api.openai.com/v1",
     "claude": "https://api.anthropic.com",
+    "minimax": "https://api.minimax.chat/v1",
+    "moonshot": "https://api.moonshot.cn/v1",
+    "kimi": "https://api.moonshot.cn/v1",
+    "mimo": "https://api.mimolm.chat/v1",
 }
 
-def _get_endpoint_for_model(model_name: str) -> str | None:
-    """根据模型名推断 API 地址"""
-    for prefix, endpoint in MODEL_ENDPOINTS.items():
-        if model_name.startswith(prefix):
-            return endpoint
+
+def _get_endpoint(model: str) -> str | None:
+    for prefix, ep in MODEL_ENDPOINTS.items():
+        if model.startswith(prefix):
+            return ep
     return None
 
 
-class SettingsPage:
-    """设置标签页"""
+class SettingsPage(QWidget):
+    theme_changed = Signal(str)
 
-    def __init__(self, parent: ttk.Notebook):
-        self.frame = ttk.Frame(parent)
-        self._custom_model = ""  # 用户手动输入的自定义模型名
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._custom_model = ""
+        self._setup_ui()
+        self.load_settings()
 
-        # ── 标题 ──
-        title = ttk.Label(
-            self.frame, text="AI 解读设置",
-            font=("楷体", 17, "bold")
-        )
-        title.pack(pady=(24, 8), padx=40, anchor=W)
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        hint = ttk.Label(
-            self.frame,
-            text="配置大模型 API 后可使用 AI 解卦。支持 DeepSeek 及所有 OpenAI 兼容接口。\n"
-                 "API 密钥仅保存在您的本地电脑上，不会上传到任何服务器。",
-            font=("等线", 10),
-            foreground="#999999"
-        )
-        hint.pack(pady=(0, 20), padx=40, anchor=W)
+        card = QFrame()
+        card.setObjectName("card")
+        c = QVBoxLayout(card)
+        c.setSpacing(12)
 
-        # ── API 密钥 ──
-        key_frame = ttk.Frame(self.frame)
-        key_frame.pack(fill=X, padx=40, pady=6)
-        ttk.Label(key_frame, text="API 密钥", width=14, anchor=E,
-                  font=("等线", 10)).pack(side=LEFT, padx=(0, 10))
-        self.api_key_var = ttk.StringVar()
-        self.api_key_entry = ttk.Entry(
-            key_frame, textvariable=self.api_key_var, show="*", width=55,
-            font=("等线", 10),
-        )
-        self.api_key_entry.pack(side=LEFT)
+        title = QLabel("AI 解读设置")
+        title.setObjectName("cardTitle")
+        c.addWidget(title)
 
-        # ── API 地址 ──
-        url_frame = ttk.Frame(self.frame)
-        url_frame.pack(fill=X, padx=40, pady=6)
-        ttk.Label(url_frame, text="API 地址", width=14, anchor=E,
-                  font=("等线", 10)).pack(side=LEFT, padx=(0, 10))
-        self.api_endpoint_var = ttk.StringVar()
-        self.api_endpoint_entry = ttk.Entry(
-            url_frame, textvariable=self.api_endpoint_var, width=55,
-            font=("等线", 10),
-        )
-        self.api_endpoint_entry.pack(side=LEFT)
+        hint = QLabel("配置大模型 API 后可使用 AI 解卦。支持 DeepSeek 及所有 OpenAI 兼容接口。\nAPI 密钥仅保存在您的本地电脑上，不会上传到任何服务器。")
+        hint.setWordWrap(True)
+        hint.setObjectName("hintLabel")
+        c.addWidget(hint)
 
-        # ── 模型选择 ──
-        model_frame = ttk.Frame(self.frame)
-        model_frame.pack(fill=X, padx=40, pady=6)
-        ttk.Label(model_frame, text="模型选择", width=14, anchor=E,
-                  font=("等线", 10)).pack(side=LEFT, padx=(0, 10))
+        # API Key
+        self.api_key = QLineEdit()
+        self.api_key.setEchoMode(QLineEdit.Password)
+        c.addWidget(self._row("API 密钥", self.api_key))
 
-        # 下拉框
-        self.model_combo_var = ttk.StringVar()
-        self.model_combo = ttk.Combobox(
-            model_frame,
-            textvariable=self.model_combo_var,
-            values=PRESET_MODELS,
-            state="readonly",
-            width=30,
-            font=("等线", 10),
-        )
-        self.model_combo.pack(side=LEFT)
-        self.model_combo.bind("<<ComboboxSelected>>", self._on_model_selected)
+        # API Endpoint
+        self.api_endpoint = QLineEdit()
+        c.addWidget(self._row("API 地址", self.api_endpoint))
 
-        # 自定义模型输入框（选中"—— 自定义 ——"时显示）
-        self.custom_entry_var = ttk.StringVar()
-        self.custom_entry = ttk.Entry(
-            model_frame, textvariable=self.custom_entry_var, width=25,
-            font=("等线", 10),
-        )
-        # 默认隐藏，选中"自定义"时才显示
-        self.custom_entry.pack(side=LEFT, padx=(8, 0))
-        self.custom_entry.pack_forget()
+        # Model
+        self.model_combo = QComboBox()
+        self.model_combo.addItems(PRESET_MODELS)
+        self.model_combo.currentTextChanged.connect(self._on_model_changed)
+        c.addWidget(self._row("模型选择", self.model_combo))
 
-        # ── 按钮行 ──
-        btn_frame = ttk.Frame(self.frame)
-        btn_frame.pack(fill=X, padx=40, pady=20)
+        self.custom_model = QLineEdit()
+        self.custom_model.hide()
+        c.addWidget(self._row("", self.custom_model))
 
-        self.test_btn = ttk.Button(
-            btn_frame, text=" 测试连接 ",
-            command=self._test_connection,
-            bootstyle="outline-info",
-        )
-        self.test_btn.pack(side=LEFT, padx=(0, 10))
+        # 主题切换
+        theme_row = QHBoxLayout()
+        self.dark_btn = QPushButton("深 色")
+        self.dark_btn.setObjectName("themeDark")
+        self.dark_btn.setCheckable(True)
+        self.dark_btn.setCursor(Qt.PointingHandCursor)
+        self.dark_btn.clicked.connect(lambda: self._toggle_theme("dark"))
+        theme_row.addWidget(self.dark_btn)
+        self.light_btn = QPushButton("浅 色")
+        self.light_btn.setObjectName("themeLight")
+        self.light_btn.setCheckable(True)
+        self.light_btn.setCursor(Qt.PointingHandCursor)
+        self.light_btn.clicked.connect(lambda: self._toggle_theme("light"))
+        theme_row.addWidget(self.light_btn)
+        theme_row.addStretch()
+        c.addWidget(self._row("界面主题", self._wrap_layout(theme_row)))
 
-        self.save_btn = ttk.Button(
-            btn_frame, text=" 保存设置 ",
-            command=self._save,
-            bootstyle="primary",
-        )
-        self.save_btn.pack(side=LEFT)
+        # Buttons
+        btn_row = QHBoxLayout()
+        self.test_btn = QPushButton("测试连接")
+        self.test_btn.setObjectName("outlineBtn")
+        self.test_btn.setCursor(Qt.PointingHandCursor)
+        self.test_btn.clicked.connect(self._test)
+        btn_row.addWidget(self.test_btn)
 
-        # ── 状态提示 ──
-        self.status_var = ttk.StringVar()
-        self.status_label = ttk.Label(
-            self.frame, textvariable=self.status_var,
-            font=("等线", 9),
-        )
-        self.status_label.pack(pady=8, padx=40, anchor=W)
+        save_btn = QPushButton("保存设置")
+        save_btn.setObjectName("primaryBtn")
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.clicked.connect(self._save)
+        btn_row.addWidget(save_btn)
+        btn_row.addStretch()
+        c.addLayout(btn_row)
 
-        # ── 界面主题 ──
-        theme_frame = ttk.Frame(self.frame)
-        theme_frame.pack(fill=X, padx=40, pady=6)
-        ttk.Label(theme_frame, text="界面主题", width=14, anchor=E,
-                  font=("等线", 10)).pack(side=LEFT, padx=(0, 10))
+        self.status_label = QLabel()
+        self.status_label.setObjectName("statusLabel")
+        c.addWidget(self.status_label)
 
-        self.theme_var = ttk.StringVar()
-        self.theme_combo = ttk.Combobox(
-            theme_frame,
-            textvariable=self.theme_var,
-            values=sorted(ttk.Style().theme_names()),
-            state="readonly",
-            width=30,
-            font=("等线", 10),
-        )
-        self.theme_combo.pack(side=LEFT)
-        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_selected)
+        c.addStretch()
+        layout.addWidget(card)
 
-        # ── 分隔线 ──
-        ttk.Separator(self.frame, orient=HORIZONTAL).pack(
-            fill=X, padx=40, pady=20)
+    def _wrap_layout(self, lo):
+        w = QWidget()
+        w.setLayout(lo)
+        return w
 
-        # ── 关于 ──
-        about_title = ttk.Label(
-            self.frame, text="关于",
-            font=("楷体", 17, "bold")
-        )
-        about_title.pack(pady=(5, 8), padx=40, anchor=W)
+    def _row(self, label, widget):
+        w = QWidget()
+        row = QHBoxLayout(w)
+        row.setContentsMargins(0, 0, 0, 0)
+        if label:
+            lbl = QLabel(label)
+            lbl.setFixedWidth(80)
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl.setObjectName("settingLabel")
+            row.addWidget(lbl)
+        row.addWidget(widget, 1)
+        return w
 
-        about_text = (
-            "易经占卜 v1.0\n"
-            "基于《周易》通行本原文，包含完整的 64 卦卦辞、彖传、象传和爻辞。\n"
-            "起卦方法：三铜钱法、随机数法\n"
-            "AI 解读：支持 DeepSeek 等兼容 OpenAI 接口的大模型\n\n"
-            "《周易》原文为公共领域古典文献。"
-        )
-        about_label = ttk.Label(
-            self.frame, text=about_text,
-            font=("等线", 10),
-            foreground="#999999",
-            justify=LEFT
-        )
-        about_label.pack(pady=5, padx=40, anchor=W)
+    def _toggle_theme(self, mode: str):
+        self.dark_btn.setChecked(mode == "dark")
+        self.light_btn.setChecked(mode == "light")
+        self.theme_changed.emit("darkly" if mode == "dark" else "litera")
 
-        # 加载当前设置
-        self.load_current_settings()
-
-    # ── 主题选择逻辑 ──
-
-    def _on_theme_selected(self, event=None):
-        """主题下拉框选择变化 —— 即时切换 + 自动保存"""
-        new_theme = self.theme_var.get()
-        if new_theme:
-            root = self.frame.winfo_toplevel()
-            if hasattr(root, 'style'):
-                root.style.theme_use(new_theme)
-                apply_custom_style()
-                refresh_tk_widgets()
-            # 自动保存主题偏好
-            settings = load_settings()
-            settings.theme = new_theme
-            save_settings(settings)
-
-    # ── 模型选择逻辑 ──
-
-    def _on_model_selected(self, event=None):
-        """下拉框选择变化 —— 自动填充对应 API 地址"""
-        selected = self.model_combo_var.get()
-        if selected == "—— 自定义 ——":
-            self.custom_entry.pack(side=LEFT, padx=(8, 0))
-            self.custom_entry_var.set(self._custom_model)
+    def _on_model_changed(self, text):
+        if text == "—— 自定义 ——":
+            self.custom_model.show()
+            self.custom_model.setText(self._custom_model)
         else:
-            self.custom_entry.pack_forget()
-            self._custom_model = ""  # 用预设值，清空自定义
-            # 自动填充对应的 API 地址
-            endpoint = _get_endpoint_for_model(selected)
-            if endpoint:
-                self.api_endpoint_var.set(endpoint)
+            self.custom_model.hide()
+            self._custom_model = ""
+            ep = _get_endpoint(text)
+            if ep:
+                self.api_endpoint.setText(ep)
 
-    def _get_model_name(self) -> str:
-        """获取当前选择的模型名称"""
-        selected = self.model_combo_var.get()
-        if selected == "—— 自定义 ——":
-            return self.custom_entry_var.get().strip()
-        return selected
+    def _get_model(self):
+        sel = self.model_combo.currentText()
+        return self.custom_model.text().strip() if sel == "—— 自定义 ——" else sel
 
-    # ── 设置读写 ──
-
-    def load_current_settings(self):
-        """加载当前设置到表单"""
-        settings = load_settings()
-        self.api_key_var.set(settings.api_key)
-        self.api_endpoint_var.set(settings.api_endpoint)
-
-        # 主题
-        theme = settings.theme if hasattr(settings, 'theme') else "darkly"
-        self.theme_var.set(theme)
-
-        # 判断当前模型是否在预设列表中
-        model = settings.model_name
+    def load_settings(self):
+        s = load_settings()
+        self.api_key.setText(s.api_key)
+        self.api_endpoint.setText(s.api_endpoint)
+        model = s.model_name
         if model in PRESET_MODELS and model != "—— 自定义 ——":
-            self.model_combo_var.set(model)
-            self.custom_entry.pack_forget()
+            self.model_combo.setCurrentText(model)
+            self.custom_model.hide()
         else:
-            self.model_combo_var.set("—— 自定义 ——")
+            self.model_combo.setCurrentText("—— 自定义 ——")
             self._custom_model = model
-            self.custom_entry_var.set(model)
-            self.custom_entry.pack(side=LEFT, padx=(8, 0))
-
-        self.status_var.set("")
+            self.custom_model.setText(model)
+            self.custom_model.show()
+        theme = s.theme if hasattr(s, 'theme') else "darkly"
+        is_dark = theme in ("darkly", "superhero", "solar", "cyborg", "vapor")
+        self.dark_btn.setChecked(is_dark)
+        self.light_btn.setChecked(not is_dark)
+        self.status_label.setText("")
 
     def _save(self):
-        """保存设置"""
-        settings = AppSettings(
-            api_key=self.api_key_var.get().strip(),
-            api_endpoint=self.api_endpoint_var.get().strip(),
-            model_name=self._get_model_name(),
-            theme=self.theme_var.get(),
+        s = AppSettings(
+            api_key=self.api_key.text().strip(),
+            api_endpoint=self.api_endpoint.text().strip(),
+            model_name=self._get_model(),
+            theme="darkly" if self.dark_btn.isChecked() else "litera",
         )
-        save_settings(settings)
-        self.status_var.set("✓ 设置已保存")
-        self.status_label.configure(foreground="#2ecc71")
+        save_settings(s)
+        self.status_label.setText("✓ 设置已保存")
 
-    # ── 连接测试 ──
-
-    def _test_connection(self):
-        """测试 API 连接"""
+    def _test(self):
         self._save()
-        self.test_btn.configure(state=DISABLED, text=" 正在测试... ")
-        self.status_var.set("正在测试连接...")
-        self.status_label.configure(foreground="#999999")
+        self.test_btn.setEnabled(False)
+        self.test_btn.setText("正在测试...")
+        self.status_label.setText("正在测试连接...")
 
-        def run_test():
-            success, message = test_connection()
-            self.frame.after(0, lambda: self._on_test_result(success, message))
+        def run():
+            ok, msg = test_connection()
+            self.test_btn.setEnabled(True)
+            self.test_btn.setText("测试连接")
+            self.status_label.setText(msg)
 
-        threading.Thread(target=run_test, daemon=True).start()
-
-    def _on_test_result(self, success: bool, message: str):
-        """测试结果回调"""
-        self.test_btn.configure(state=NORMAL, text=" 测试连接 ")
-        self.status_var.set(message)
-        self.status_label.configure(foreground="#2ecc71" if success else "#e74c3c")
+        threading.Thread(target=run, daemon=True).start()
