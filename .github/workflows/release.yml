@@ -28,7 +28,7 @@ jobs:
           python-version: '3.11'
 
       - name: 安装依赖
-        run: pip install ttkbootstrap openai pyinstaller
+        run: pip install PySide6 openai pyinstaller pillow
 
       - name: 构建 exe
         run: pyinstaller --noconfirm 易经占卜.spec

@@ -15,16 +15,16 @@ a = Analysis(
     datas=[
         # hexagrams.json → 运行时 data/ 目录
         (str(ROOT / 'src' / 'data' / 'hexagrams.json'), 'data'),
-        (str(ROOT / 'src' / 'data' / 'themes.json'), 'data'),
         # 图标文件 → 运行时 assets/ 目录
         (str(ROOT / 'assets' / 'icon.ico'), 'assets'),
         (str(ROOT / 'assets' / 'icon.png'), 'assets'),
     ],
     hiddenimports=[
-        'ttkbootstrap',
-        'ttkbootstrap.themes',
-        'tkinter',
-        'tkinter.ttk',
+        'PySide6',
+        'PySide6.QtWidgets',
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PIL',
         'openai',
         'sqlite3',
     ],
